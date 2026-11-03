@@ -15,7 +15,6 @@ jobs:
     permissions:
       contents: write
     env:
-      RUNLOCAL_KEYSTORE: ${{ runner.temp }}/runlocal-signing.jks
       RUNLOCAL_STORE_PASSWORD: ${{ secrets.RUNLOCAL_STORE_PASSWORD }}
       RUNLOCAL_KEY_ALIAS: ${{ secrets.RUNLOCAL_KEY_ALIAS }}
       RUNLOCAL_KEY_PASSWORD: ${{ secrets.RUNLOCAL_KEY_PASSWORD }}
@@ -29,12 +28,17 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
       - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;28.2.13676358' 'cmake;3.22.1'
       - name: Restore private signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.RUNLOCAL_KEYSTORE_BASE64 }}
         run: |
+          export RUNLOCAL_KEYSTORE="$RUNNER_TEMP/runlocal-signing.jks"
+          printf 'RUNLOCAL_KEYSTORE=%s\n' "$RUNLOCAL_KEYSTORE" >> "$GITHUB_ENV"
           python3 - <<'PY'
           import base64, os
           from pathlib import Path
@@ -68,4 +72,4 @@ jobs:
           gh release create "$RELEASE_TAG" "dist/runlocal-${RELEASE_TAG#v}-arm64.apk" dist/SHA256SUMS dist/INSTALLATION-CHECKS.json --verify-tag --draft --title "RunLocal ${RELEASE_TAG#v}" --notes-file dist/RELEASE-NOTES.md "${args[@]}"
       - name: Remove signing material
         if: always()
-        run: rm -f "$RUNLOCAL_KEYSTORE"
+        run: rm -f "$RUNNER_TEMP/runlocal-signing.jks"

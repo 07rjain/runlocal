@@ -2,6 +2,13 @@
 
 Versions are ordered newest first. Earlier entries reconstruct the local development artifacts and notes; they are not claims of prior public GitHub releases. Candidate versions remain experimental until device acceptance.
 
+## [Unreleased]
+
+### Fixed
+- CI Android setup installs platform-tools without requesting the removed SDK tools package.
+- Release signing path is resolved on the runner, instead of using an unsupported job-level context.
+- Workflow validation now checks GitHub expressions with actionlint.
+
 ## [1.0.0-rc3] - 2026-11-03
 
 ### Added
