@@ -1,0 +1,4 @@
+stable-diffusion.cpp https://github.com/leejet/stable-diffusion.cpp 290148d2e31ca6ef9757d567905776b5f3646db5
+ggml https://github.com/leejet/ggml d49c49e1dd361ba3c0a77c90b5b1404b83969aa8
+android-ndk 28.2.13676358
+cmake 3.22.1

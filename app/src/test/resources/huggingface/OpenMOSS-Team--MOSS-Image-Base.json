@@ -1,0 +1,31 @@
+{
+  "id": "OpenMOSS-Team/MOSS-Image-Base",
+  "sha": "85975793d8b3d432f1b6e27f352abaa4c2a4c0d3",
+  "tags": [
+    "diffusers",
+    "safetensors",
+    "moss-image",
+    "text-to-image",
+    "en",
+    "zh",
+    "arxiv:2610.23374",
+    "license:apache-2.0",
+    "diffusers:MOSSImagePipeline",
+    "region:us"
+  ],
+  "cardData": {
+    "license": "apache-2.0"
+  },
+  "siblings": [
+    {
+      "rfilename": "tokenizer/tokenizer.json",
+      "blobId": "5520bfd2dd834ce386c1312c410fa71af56db5ad",
+      "size": 19989325,
+      "lfs": {
+        "sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+        "size": 19989325,
+        "pointerSize": 133
+      }
+    }
+  ]
+}

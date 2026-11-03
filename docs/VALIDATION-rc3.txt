@@ -1,0 +1,15 @@
+Historical validation record from before initial source publication.
+
+RunLocal 1.0.0-rc3, versionCode 9. Development review candidate; no source push or app release published by this update.
+
+Changes: Apache-2.0 LICENSE/NOTICE, CHANGELOG, AGENTS guide, release procedures, CI and signed/minified GitHub draft workflow. Default update repository 07rjain/runlocal. Single chat composer with tools/input/mic/send-or-cancel; obsolete Voice/Studio state and unused import path removed, dictated text routes to its originating chat. No forced null assertions remain in production Kotlin. Required non-null types are retained.
+
+Release updates: bounded public GitHub stable-release checks; monotonic versionCode marker and same-repository ARM64 asset validation; daily network-constrained JobScheduler job and foreground notices with cached results, manual checks, notification permission and disable controls. No prompts/models/identifiers sent. Notifications link to the GitHub release; installation is user approved. Drafts/prereleases do not trigger updates. Older apps must first install a build containing this updater.
+
+Checks: final debug build, debug/release lint and release minifyReleaseWithR8 succeeded. 74 Android unit tests total: 69 passed, 5 optional integration tests skipped, zero failures/errors. Three Python release-script tests passed. Workflow files parse as valid YAML. R8 9.1.31 handles the Kotlin 2.4 metadata from LiteRT-LM; previous metadata parsing warnings are resolved (async-parsing performance warnings remain). The full signed release APK/GitHub Actions execution has not run; no release signing secrets were provisioned.
+
+APK verification: standalone ARM64, non-test-only, signature continuity with rc2 and 16 KB ZIP/native ELF checks passed. BuildConfig contains the configured repository; Apache license is included in APK assets.
+Certificate SHA256: 4dc9269b18a7432cd749fe1a5bf73fb62cdcb126f501b3b84bdf598c75829e9f
+APK SHA256: e5edbb2394baecbc60e747e2735b81ad5d832610123cca441e17f9be6a653f61
+
+Unverified: phone composer/accessibility/keyboard, speech, notification/JobScheduler behavior, end-to-end GitHub update installation, actual device inference and full MOSS. Host still lacks a usable Android emulator/KVM or connected phone. Android may delay jobs; force-stopped apps cannot receive scheduled checks. Public stable releases require owner signing configuration and candidate review. See RELEASING.md and V1-READINESS.md.

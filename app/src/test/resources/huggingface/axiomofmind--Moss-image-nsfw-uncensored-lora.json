@@ -1,0 +1,51 @@
+{
+  "id": "axiomofmind/Moss-image-nsfw-uncensored-lora",
+  "sha": "5f24e258ebb2a7d8aa77ee4940504dd57b54d5b9",
+  "tags": [
+    "diffusers",
+    "safetensors",
+    "text-to-image",
+    "lora",
+    "moss-image",
+    "nsfw",
+    "adult-content",
+    "template:sd-lora",
+    "base_model:OpenMOSS-Team/MOSS-Image-SFT",
+    "base_model:adapter:OpenMOSS-Team/MOSS-Image-SFT",
+    "license:apache-2.0",
+    "region:us",
+    "not-for-all-audiences"
+  ],
+  "cardData": {
+    "base_model": "OpenMOSS-Team/MOSS-Image-SFT",
+    "license": "apache-2.0",
+    "instance_prompt": "moss_xvstyle"
+  },
+  "siblings": [
+    {
+      "rfilename": "MOSS-Image-NSFW-Uncensored-LoRA-ComfyUI.safetensors",
+      "blobId": "eb149ef0dd6d905e58d0559b2a90d0b4529baf54",
+      "size": 74379592,
+      "lfs": {
+        "sha256": "4480e3154fd663d5ee6daa86ac59d0fd211ce495b9dfeedfb914c38f777f3a0b",
+        "size": 74379592,
+        "pointerSize": 133
+      }
+    },
+    {
+      "rfilename": "adapter_config.json",
+      "blobId": "55a1d8734f0a1acb7c45b99d2be003981f7e795d",
+      "size": 203
+    },
+    {
+      "rfilename": "pytorch_lora_weights.safetensors",
+      "blobId": "bf217e05fec086fbc96ae6ac7672726798e79b52",
+      "size": 74377208,
+      "lfs": {
+        "sha256": "79b9c653f58453f84a44f2be67aa45f4f998618b0af5d84a5b9066e8c5666ba3",
+        "size": 74377208,
+        "pointerSize": 133
+      }
+    }
+  ]
+}

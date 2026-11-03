@@ -1,0 +1,23 @@
+.gradle/
+.kotlin/
+.idea/
+local.properties
+**/build/
+*.iml
+.cxx/
+third_party/stable-diffusion.cpp/
+*.jks
+*.keystore
+*.pem
+.env
+.env.*
+
+__pycache__/
+*.py[cod]
+
+# Local crash reports and runtime dumps
+*.log
+*.hprof
+core
+core.*
+/dist/

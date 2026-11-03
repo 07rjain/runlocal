@@ -1,0 +1,31 @@
+{
+  "id": "Comfy-Org/MOSS-Image",
+  "sha": "530a4c94f92c35ef6818b1b035a983fe9dcf5f54",
+  "tags": [
+    "diffusion-single-file",
+    "comfyui",
+    "base_model:OpenMOSS-Team/MOSS-Image-Base",
+    "base_model:finetune:OpenMOSS-Team/MOSS-Image-Base",
+    "license:apache-2.0",
+    "region:us"
+  ],
+  "cardData": {
+    "base_model": [
+      "OpenMOSS-Team/MOSS-Image-Base",
+      "OpenMOSS-Team/MOSS-Image-SFT"
+    ],
+    "license": "apache-2.0"
+  },
+  "siblings": [
+    {
+      "rfilename": "vae/flux2-vae_small.safetensors",
+      "blobId": "f179891cafa02689a551273bcb2cf912d05b4bf7",
+      "size": 249521340,
+      "lfs": {
+        "sha256": "d8d52ba036475f5fb07c8b435e176d3d97ebfa82f0d1a1c317f9cc1e25bd013b",
+        "size": 249521340,
+        "pointerSize": 134
+      }
+    }
+  ]
+}

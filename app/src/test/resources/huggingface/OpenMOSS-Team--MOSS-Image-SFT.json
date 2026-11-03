@@ -1,0 +1,23 @@
+{
+  "id": "OpenMOSS-Team/MOSS-Image-SFT",
+  "sha": "f972bd4b4b9e3852133cc5da954d87bc32cd8fb9",
+  "tags": [
+    "diffusers",
+    "safetensors",
+    "moss-image",
+    "text-to-image",
+    "en",
+    "zh",
+    "arxiv:2610.23374",
+    "base_model:OpenMOSS-Team/MOSS-Image-Base",
+    "base_model:finetune:OpenMOSS-Team/MOSS-Image-Base",
+    "license:apache-2.0",
+    "diffusers:MOSSImagePipeline",
+    "region:us"
+  ],
+  "cardData": {
+    "license": "apache-2.0",
+    "base_model": "OpenMOSS-Team/MOSS-Image-Base"
+  },
+  "siblings": []
+}

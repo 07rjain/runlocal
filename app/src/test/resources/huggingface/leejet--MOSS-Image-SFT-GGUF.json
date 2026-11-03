@@ -1,0 +1,33 @@
+{
+  "id": "leejet/MOSS-Image-SFT-GGUF",
+  "sha": "238daf423f0de65316207453591f275407aac9a7",
+  "tags": [
+    "gguf",
+    "text-to-image",
+    "stable-diffusion.cpp",
+    "en",
+    "zh",
+    "base_model:OpenMOSS-Team/MOSS-Image-SFT",
+    "base_model:quantized:OpenMOSS-Team/MOSS-Image-SFT",
+    "license:apache-2.0",
+    "region:us"
+  ],
+  "cardData": {
+    "license": "apache-2.0",
+    "base_model": [
+      "OpenMOSS-Team/MOSS-Image-SFT"
+    ]
+  },
+  "siblings": [
+    {
+      "rfilename": "MOSS-Image-SFT-Q4_0.gguf",
+      "blobId": "4c1b91ec0eb564feb1236eea3c010e3b00c2e1cc",
+      "size": 3327400800,
+      "lfs": {
+        "sha256": "b59d2461fa431d670471f74ab54fd90a0bfb36799fd3ffbec1cf103568a883b8",
+        "size": 3327400800,
+        "pointerSize": 135
+      }
+    }
+  ]
+}

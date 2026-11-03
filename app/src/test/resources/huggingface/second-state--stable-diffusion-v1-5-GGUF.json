@@ -1,0 +1,30 @@
+{
+  "id": "second-state/stable-diffusion-v1-5-GGUF",
+  "sha": "031b5f5df991f511b3f5fa8fed6d99048ababb69",
+  "tags": [
+    "gguf",
+    "stable-diffusion",
+    "stable-diffusion-diffusers",
+    "text-to-image",
+    "base_model:runwayml/stable-diffusion-v1-5",
+    "base_model:quantized:runwayml/stable-diffusion-v1-5",
+    "license:creativeml-openrail-m",
+    "region:us"
+  ],
+  "cardData": {
+    "base_model": "runwayml/stable-diffusion-v1-5",
+    "license": "creativeml-openrail-m"
+  },
+  "siblings": [
+    {
+      "rfilename": "stable-diffusion-v1-5-pruned-emaonly-Q4_0.gguf",
+      "blobId": "e3ffe82309f1b23645a92f90acfb08999007a837",
+      "size": 1566768416,
+      "lfs": {
+        "sha256": "b8944e9fe0b69b36ae1b5bb0185b3a7b8ef14347fe0fa9af6c64c4829022261f",
+        "size": 1566768416,
+        "pointerSize": 135
+      }
+    }
+  ]
+}

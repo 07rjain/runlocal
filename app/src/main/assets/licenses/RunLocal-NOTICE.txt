@@ -1,0 +1,7 @@
+RunLocal
+Copyright 2026 RunLocal contributors
+
+Application source is licensed under the Apache License, Version 2.0.
+Third-party runtimes and bundled notices retain their own licenses.
+See THIRD_PARTY_NOTICES.md and app/src/main/assets/licenses.
+No model weights are included; their publishers’ licenses apply separately.
