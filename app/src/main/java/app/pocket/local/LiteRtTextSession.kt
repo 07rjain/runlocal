@@ -8,6 +8,12 @@ import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.ThinkingConfig
 import java.io.File
+import com.google.ai.edge.litertlm.ExperimentalApi
+import com.google.ai.edge.litertlm.ExperimentalFlags
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.buffer
+import kotlinx.coroutines.channels.Channel
 
 internal fun textEngineConfig(model: LocalModel, backend: ProcessingBackend, cachePath: String): EngineConfig {
     // Separate delegate caches, including the runtime version, to avoid stale CPU/GPU artifacts.
@@ -24,6 +30,8 @@ internal class LiteRtTextSessionFactory(private val cachePath: String, private v
         availableMemory?.invoke()?.let { available ->
             require(model.size <= available * .65) { "Not enough memory to load this model: ${available / (1024 * 1024)} MB free, ${model.size / (1024 * 1024)} MB of weights. Close other apps or choose a smaller model." }
         }
+        @OptIn(ExperimentalApi::class)
+        ExperimentalFlags.enableBenchmark = true
         val engine = Engine(textEngineConfig(model, backend, cachePath))
         try {
             engine.initialize()
@@ -33,8 +41,23 @@ internal class LiteRtTextSessionFactory(private val cachePath: String, private v
                 maxOutputToken = 512
             ))
             return object : TextSession {
-                override fun send(prompt: String): String = conversation.sendMessage(prompt).contents.contents
-                    .filterIsInstance<Content.Text>().joinToString("") { it.text }
+                override fun send(prompt: String): String = stream(prompt) {}
+                override fun stream(prompt: String, onText: (String) -> Unit): String = runBlocking {
+                    val text = StringBuilder()
+                    // Collect callbacks on the owning serial worker; a callback chunk may
+                    // contain several tokens, or only channel metadata.
+                    // The upstream callback uses trySend: avoid losing text during UI/GC
+                    // stalls. The native request is capped at 512 output tokens.
+                    conversation.sendMessageAsync(prompt).buffer(Channel.UNLIMITED).collect { message ->
+                        val delta = message.contents.contents.filterIsInstance<Content.Text>().joinToString("") { it.text }
+                        if (delta.isNotEmpty()) { text.append(delta); onText(text.toString()) }
+                    }
+                    text.toString()
+                }
+                @OptIn(ExperimentalApi::class)
+                override fun metrics(): DecodeMetrics? = runCatching {
+                    conversation.getBenchmarkInfo().let { nativeDecodeMetrics(it.lastDecodeTokenCount, it.lastDecodeTokensPerSecond, it.timeToFirstTokenInSecond) }
+                }.getOrNull() // Some model/backend combinations do not expose benchmark info.
                 override fun close() {
                     try { conversation.close() } finally { engine.close() }
                 }

@@ -122,5 +122,6 @@ data class ChatLine(
     val role: String, val text: String,
     val id: String = UUID.randomUUID().toString(),
     val image: String = "", val state: String = "complete",
-    val turn: String = ""
+    val turn: String = "",
+    val metrics: GenerationMetrics? = null
 )

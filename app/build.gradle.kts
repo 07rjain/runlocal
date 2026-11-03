@@ -18,8 +18,8 @@ android {
         applicationId = "app.pocket.local"
         minSdk = 31
         targetSdk = 36
-        versionCode = 9
-        versionName = "1.0.0-rc3"
+        versionCode = 10
+        versionName = "1.0.0-rc4"
         buildConfigField("String", "RELEASE_REPOSITORY", "\"$releaseRepository\"")
         externalNativeBuild { cmake { arguments += listOf("-DANDROID_STL=c++_shared"); targets += "pocket_diffusion" } }
     }

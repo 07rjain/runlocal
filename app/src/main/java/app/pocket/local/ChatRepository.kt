@@ -44,11 +44,11 @@ class ChatRepository(private val directory: File) {
     fun select(id: String) { require(get(id) != null); File(directory, "selected").writeText(id) }
     fun selected(): SavedChat? = runCatching { get(File(directory, "selected").readText()) }.getOrNull()
     fun delete(id: String) { check(file(id).delete()) { "Could not delete this conversation." } }
-    fun finish(chatId: String, replyId: String, text: String, image: String = "", failed: Boolean = false): Boolean {
+    fun finish(chatId: String, replyId: String, text: String, image: String = "", failed: Boolean = false, metrics: GenerationMetrics? = null): Boolean {
         val chat = get(chatId) ?: return false
         val index = chat.messages.indexOfFirst { it.id == replyId && it.state == "pending" }
         if (index < 0) return false
-        chat.messages[index] = chat.messages[index].copy(text = text, image = image, state = if (failed) "error" else "complete")
+        chat.messages[index] = chat.messages[index].copy(text = text, image = image, state = if (failed) "error" else "complete", metrics = if (failed) null else metrics)
         chat.updatedAt = System.currentTimeMillis(); save(chat)
         return true
     }

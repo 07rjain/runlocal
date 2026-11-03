@@ -17,6 +17,7 @@ Read README.md, CHANGELOG.md and V1-READINESS.md before changing release behavio
 - File extensions/container validation do not establish model operator/device compatibility. A LoRA requires the matching base. Cactus private downloads are inaccessible through another app's grants; no storage sandbox bypass. Do not claim arbitrary Hugging Face models or video work.
 - Model setup pins revisions and verifies publisher hashes. Read cross-process atomically replaced base files directly; AtomicFile.openRead can disturb another writer. Main process applies SharedPreferences selections; avoid cross-process prefs caching.
 - No model weights, secrets, signing keys, build caches, private chats or generated images in source control. Put APKs in release assets, not git. Inspect staged files before any publication.
+- Text speed/token counts must come from native benchmark data, never word/character/chunk estimates. Keep model load, runtime TTFT and first-text arrival distinct. Streaming callbacks update only their originating chat; native lifecycle remains serial.
 - Preserve explicit processor choice and offline speech; no network recognition fallback. Automatic update checks are disclosed, can be disabled, and only read public release metadata.
 
 ## Validation and releases

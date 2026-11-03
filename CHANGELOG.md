@@ -2,7 +2,12 @@
 
 Versions are ordered newest first. Earlier entries reconstruct the local development artifacts and notes; they are not claims of prior public GitHub releases. Candidate versions remain experimental until device acceptance.
 
-## [Unreleased]
+## [1.0.0-rc4] - 2026-11-03
+
+### Added
+- Branded Android launch splash, loading indicators and elapsed generation stages.
+- Streaming text replies with native decode tokens/sec, runtime time to first token, output-token count and total/load/first-text timing.
+- Per-reply performance details saved with chat history; missing native metrics are labeled unavailable instead of estimated.
 
 ### Fixed
 - Native bootstrap no longer mistakes a fresh no-checkout clone for user modifications; existing changes remain protected.

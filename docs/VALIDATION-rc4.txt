@@ -1,0 +1,15 @@
+RunLocal 1.0.0-rc4 · versionCode 10 · ARM64 · Android 12+
+
+Added native Android launch splash, indeterminate loading indicators, elapsed loading/prompt/generation stages, streaming text responses, and persisted per-reply performance details.
+
+Metrics: native LiteRT-LM benchmark last-decode token count/rate and runtime time to first token. App-side monotonic clock records model/session loading, first text received including loading, and total time. Stream chunk counts/words/characters are never treated as tokens. Missing/invalid native statistics are unavailable; reused sessions have zero model load. Stats remain attached to their originating reply when switching chats. Image output has no text-token metrics.
+
+Validation:
+- :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:minifyReleaseWithR8 succeeded with Java 21.
+- 80 Android unit tests: 75 passed, 5 optional integration tests skipped; zero failures/errors.
+- Five Python script tests passed. New regression coverage includes first-text timing, native counter use independent of callback count, warm-session loading, invalid/absent metrics and persistence/reply isolation.
+- Standalone/non-test-only APK verification, signer continuity with rc3, signature and 16 KB ZIP/native ELF alignment passed.
+- Certificate SHA256: 4dc9269b18a7432cd749fe1a5bf73fb62cdcb126f501b3b84bdf598c75829e9f
+- APK SHA256: 09116e43e755ea389c50722fc4d55916701bcd83fd38eb4d3289ac1e0ac744ef
+
+Not verified: actual Android UI or streaming/native benchmark output on the Motorola Edge 60 Pro. Device discovery found no physical phone and only stopped emulators; this host has no /dev/kvm, and earlier emulator boot failed for missing acceleration. No test model was downloaded. Full phone inference, memory/performance/thermal behavior and MOSS remain unverified. This is a development candidate, not a stable/public APK release. See V1-READINESS.md and RELEASING.md.

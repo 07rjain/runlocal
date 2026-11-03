@@ -2,11 +2,11 @@
 
 A small native Android app for chatting with models on your phone. Two tabs: **Chat** and **Models**. No account, analytics, prompt uploads, or cloud inference. Internet is used for requested Hugging Face model setup and optional daily GitHub release checks in configured builds; downloaded models run locally afterwards.
 
-**Current candidate: 1.0.0-rc3** · Android 12+ · ARM64 phones. This is a development release candidate, pending physical-device acceptance testing. The source is available under Apache-2.0; a stable v1 APK release has not been published.
+**Current candidate: 1.0.0-rc4** · Android 12+ · ARM64 phones. This is a development release candidate, pending physical-device acceptance testing. The source is available under Apache-2.0; a stable v1 APK release has not been published.
 
 ## Use it
 
-This repository contains source code; APKs are distributed separately through [GitHub Releases](https://github.com/07rjain/runlocal/releases) when published. For a local development build, install `dist/runlocal-1.0.0-rc3-arm64.apk` after running the build and packaging steps below. Model weights are downloaded separately. The APK retains the existing app ID, signing certificate, and a higher version code so it can update earlier development builds without uninstalling them.
+This repository contains source code; APKs are distributed separately through [GitHub Releases](https://github.com/07rjain/runlocal/releases) when published. For a local development build, install `dist/runlocal-1.0.0-rc4-arm64.apk` after running the build and packaging steps below. Model weights are downloaded separately. The APK retains the existing app ID, signing certificate, and a higher version code so it can update earlier development builds without uninstalling them.
 
 1. In **Models**, paste a public Hugging Face model or supported LoRA URL and tap **Add model**. Required files are selected, downloaded, verified, and installed automatically. This can use mobile data. Downloads have pause/resume controls and storage/RAM checks.
 2. In **Chat**, select an installed model at the top and send a prompt. Continue the conversation in the same screen. Image models return images in the chat, with a Save image action. Image prompts are independent generations; they do not automatically carry forward previous images.
@@ -17,6 +17,12 @@ This repository contains source code; APKs are distributed separately through [G
 7. With an SD 1.x image model selected, **＋ → Attach starting image** attaches a starting image for image-to-image generation. **＋ → Image options** opens optional image settings. A prompt alone uses the defaults.
 
 History, drafts, generated images, and model assignments are stored privately on the device. Replies remain attached to the conversation that started them when you switch chats during generation. Image chats retain their component/LoRA selection; removing a required file produces an error instead of silently substituting another model. Text inference uses the model’s chat template with proper user/assistant roles. A native engine/conversation is reused only for its owning chat and processor; switching chats/processors, a failed decode, or rolling the context window recreates it. Replay includes up to six earlier valid entries and the new message. Context is capped at 2,048 tokens; output is capped at 512 tokens, with thinking disabled. Long prompts/replies can still exceed a model’s context limit.
+
+## Loading and generation performance
+
+Android’s native launch splash uses the RunLocal icon and colors. Sending a text message shows a spinner and elapsed time, with distinct loading-model, preparing-prompt and generating stages. Responses stream into the pending reply without rebuilding the composer. Reading older messages stops automatic scrolling. Model setup/import tasks also have an indeterminate loading indicator; no artificial progress percentage is displayed.
+
+Completed text replies include decode tokens/sec, runtime time to first token (TTFT), and total time. Tap the summary for output-token count, processor, model/session load, and time to first text received including loading. Decode speed/token count/TTFT are from LiteRT-LM’s last native decode; streamed chunks and words are not treated as tokens. Live text timing is measured with a monotonic clock. Native statistics may be unavailable for some models/backends and are labeled unavailable, not estimated. Warm sessions report zero model/session load. These values are local to each reply, persist across restarts, and are not uploaded. Image generation has no text token-rate metrics.
 
 ## Model support
 
@@ -72,7 +78,7 @@ Tests cover container inspection, Hugging Face resolution, resumable verified do
 ./gradlew :app:testDebugUnitTest -PliveModelCheck=true -Prunlocal.abis=arm64-v8a
 ```
 
-See [the rc3 validation record](docs/VALIDATION-rc3.txt) for the candidate's exact results. Compilation and unit tests do not establish successful model inference on a phone. The local emulator cannot run with the current host's missing KVM support; Android UI, speech, grants, service lifecycle, image outputs, and thermal/performance behavior still need device testing.
+See [the rc4 validation record](docs/VALIDATION-rc4.txt) for the candidate's exact results. Compilation and unit tests do not establish successful model inference on a phone. The local emulator cannot run with the current host's missing KVM support; Android UI, speech, grants, service lifecycle, image outputs, and thermal/performance behavior still need device testing.
 
 ## Releases and update notifications
 

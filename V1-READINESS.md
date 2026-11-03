@@ -1,6 +1,6 @@
 # Version 1 readiness
 
-The current deliverable is **1.0.0-rc3**, a development candidate for review. The selected public repository is https://github.com/07rjain/runlocal; source is published there, while an app release remains pending.
+The current deliverable is **1.0.0-rc4**, a development candidate for review. The selected public repository is https://github.com/07rjain/runlocal; source is published there, while an app release remains pending.
 
 ## Implemented for this candidate
 
@@ -27,6 +27,7 @@ The current deliverable is **1.0.0-rc3**, a development candidate for review. Th
 - [ ] With a small SD 1.x checkpoint, generate/export an image in Chat and run image-to-image. Switch chats during generation and verify routing, then cancel/restart a job.
 - [ ] Verify model file removal fails clearly in an older chat; no silent LoRA/base substitutions.
 - [ ] Test offline microphone/read-aloud, denied permissions, keyboard/rotation, long chats, and accessibility on the phone.
+- [ ] Verify live streaming, loading states, measured TTFT/token rates, saved metrics and chat switching during generation on CPU/GPU.
 - [ ] Verify the single composer on a phone, notification permission/disable behavior, stable release detection and signed APK update continuity.
 - [ ] Measure memory, speed, thermal behavior, and battery use. Keep MOSS experimental until full matching base+adapter generation succeeds on target hardware.
 

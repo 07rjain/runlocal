@@ -66,4 +66,25 @@ class ChatRepositoryTest {
         assertEquals(listOf("Good question", "Good reply", "Follow up"), textConversationContext(messages).map { it.text })
     }
 
+    @Test fun metricsSurviveRestartAndStayWithOriginatingReply() {
+        val directory = temporary.newFolder(); val repo = ChatRepository(directory)
+        val chat = repo.create(); val reply = ChatLine("assistant", "Working", state = "pending")
+        chat.messages.add(reply); repo.save(chat)
+        val other = repo.create()
+        val metrics = GenerationMetrics("CPU only", 50.0, 100.0, 500.0, 12, 25.0, 40.0)
+        assertTrue(repo.finish(chat.id, reply.id, "Done", metrics = metrics))
+        val reopened = ChatRepository(directory)
+        assertEquals(metrics, reopened.get(chat.id)!!.messages.single().metrics)
+        assertEquals(other.id, reopened.selected()!!.id)
+        assertTrue(reopened.get(other.id)!!.messages.isEmpty())
+    }
+    @Test fun oldMessagesWithoutMetricsStillLoadAndFailedTurnsNeverStoreSuccessMetrics() {
+        val repo = repository(); val chat = repo.create()
+        chat.messages.add(ChatLine("assistant", "Working", state = "pending")); repo.save(chat)
+        assertNull(repo.get(chat.id)!!.messages.single().metrics)
+        repo.finish(chat.id, chat.messages.single().id, "Failed", failed = true,
+            metrics = GenerationMetrics("CPU only", 0.0, null, 10.0, null, null, null))
+        assertNull(repo.get(chat.id)!!.messages.single().metrics)
+    }
+
 }

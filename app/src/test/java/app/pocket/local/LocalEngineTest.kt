@@ -112,4 +112,32 @@ class LocalEngineTest {
         assertEquals("question 3", factory.opened.last().history.first().text)
     }
 
+    @Test fun streamingProgressUsesNativeTokenMetricsRatherThanCallbackCount() {
+        var opened = 0
+        val runtime = LocalEngine("unused", TextSessionFactory { _, _, _ ->
+            opened++
+            object : TextSession {
+                override fun send(prompt: String): String = error("Use streaming")
+                override fun stream(prompt: String, onText: (String) -> Unit): String {
+                    onText("Hi"); onText("Hi there"); return "Hi there"
+                }
+                override fun metrics() = DecodeMetrics(7, 42.0, 123.0)
+                override fun close() {}
+            }
+        })
+        val events = mutableListOf<GenerationProgress>()
+        val first = ChatLine("user", "Hello")
+        val answer = runtime.generate(model, listOf(first), ProcessingBackend.CPU, "chat", events::add)
+        assertEquals("Hi there", answer)
+        assertEquals(listOf("Loading model…", "Preparing prompt…", "Generating…", "Generating…", "Complete"), events.map { it.stage })
+        assertEquals(7, events.last().metrics!!.outputTokens)
+        assertEquals(42.0, events.last().metrics!!.tokensPerSecond)
+        assertNotNull(events.last().metrics!!.firstTextMs)
+        events.clear()
+        runtime.generate(model, listOf(first, ChatLine("assistant", answer), ChatLine("user", "Again")), ProcessingBackend.CPU, "chat", events::add)
+        assertEquals(1, opened)
+        assertFalse(events.any { it.stage == "Loading model…" })
+        assertEquals(0.0, events.last().metrics!!.loadMs, 0.0)
+    }
+
 }

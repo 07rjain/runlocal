@@ -74,6 +74,16 @@ class MainActivity : Activity() {
     private var recognizer: SpeechRecognizer? = null
     private var listening = false
     private var listenAction: TextView? = null
+    private data class PendingGeneration(val chatId: String, val replyId: String, val startedAt: Long, var progress: GenerationProgress)
+    private var pendingGeneration: PendingGeneration? = null
+    private var streamingTextView: TextView? = null
+    private var streamingTimingView: TextView? = null
+    private val generationHeartbeat = object : Runnable {
+        override fun run() {
+            refreshGenerationViews()
+            if (pendingGeneration != null && !destroyed) uiHandler.postDelayed(this, 250)
+        }
+    }
     private var destroyed = false
     private val updateWorker = Executors.newSingleThreadExecutor()
     private var checkingUpdates = false
@@ -173,6 +183,7 @@ class MainActivity : Activity() {
     private fun render() {
         autoSelectModel()
         root.removeAllViews(); editor = null; statusView = null; listenAction = null; imagePane = null
+        streamingTextView = null; streamingTimingView = null
         val scroll = ScrollView(this).apply { isFillViewport = true; clipToPadding = false }
         body = column().apply { setPadding(dp(22), dp(12), dp(22), dp(24)) }
         scroll.addView(body)
@@ -180,7 +191,10 @@ class MainActivity : Activity() {
         if (screen == "Chat") chatPage() else models()
         if (busy) {
             statusView = text(busyMessage, 12f, green).apply { setPadding(dp(24), dp(8), dp(24), dp(8)); accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE }
-            statusView?.let { add(root, it) }
+            val loading = row().apply { setPadding(dp(18), 0, dp(12), 0) }
+            loading.addView(ProgressBar(this), LinearLayout.LayoutParams(dp(18), dp(18)))
+            statusView?.let { loading.addView(it, LinearLayout.LayoutParams(0, -2, 1f)) }
+            add(root, loading)
         }
         navigation = row().apply { setPadding(dp(12), dp(8), dp(12), dp(8)); background = shape(Color.WHITE, 0) }
         listOf("Chat" to "chat", "Models" to "models").forEach { (title, icon) ->
@@ -358,7 +372,26 @@ class MainActivity : Activity() {
         history.forEach { message ->
             val box = column().apply { setPadding(dp(16), dp(14), dp(16), dp(14)); background = shape(if (message.role == "user") pale else Color.WHITE, 18) }
             add(box, label(if (message.role == "user") "You" else if (message.state == "pending") "Generating locally" else "RunLocal"))
-            add(box, text(message.text, 15f, if (message.state == "error") 0xff8c4a28.toInt() else ink).apply { setTextIsSelectable(true) }, top = 6)
+            val running = pendingGeneration?.takeIf { it.chatId == chat.id && it.replyId == message.id }
+            val messageText = text(if (running != null) running.progress.text.ifEmpty { running.progress.stage } else message.text,
+                15f, if (message.state == "error") 0xff8c4a28.toInt() else ink).apply { setTextIsSelectable(true) }
+            add(box, messageText, top = 6)
+            if (message.state == "pending") {
+                val progressRow = row()
+                progressRow.addView(ProgressBar(this), LinearLayout.LayoutParams(dp(18), dp(18)))
+                val timing = text(if (running != null) generationStatus(running) else "Working locally…", 12f, muted).apply {
+                    setPadding(dp(10), dp(6), 0, dp(6)); accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+                }
+                progressRow.addView(timing, LinearLayout.LayoutParams(0, -2, 1f)); add(box, progressRow, top = 8)
+                if (running != null) { streamingTextView = messageText; streamingTimingView = timing }
+            }
+            message.metrics?.let { metrics ->
+                add(box, text(metrics.caption() + "  ⓘ", 12f, green).apply {
+                    minHeight = dp(48); gravity = Gravity.CENTER_VERTICAL
+                    contentDescription = "Generation speed and timing. Tap for details."
+                    setOnClickListener { notice("Generation performance", metrics.details()) }
+                }, top = 8)
+            }
             if (message.image.isNotBlank()) {
                 val file = File(message.image)
                 if (file.isFile) {
@@ -545,6 +578,29 @@ class MainActivity : Activity() {
         setPadding(dp(14), dp(14), dp(14), dp(14)); background = shape(paper, 14, line)
     }
 
+    private fun generationStatus(pending: PendingGeneration): String {
+        val elapsed = (SystemClock.elapsedRealtime() - pending.startedAt).coerceAtLeast(0).toDouble()
+        return "${pending.progress.stage}  ·  ${seconds(elapsed)}" +
+            (pending.progress.firstTextMs?.let { "  ·  First text ${seconds(it)}" } ?: "")
+    }
+
+    private fun refreshGenerationViews() {
+        val pending = pendingGeneration ?: return
+        val status = generationStatus(pending)
+        busyMessage = "${pending.progress.stage} · ${seconds((SystemClock.elapsedRealtime() - pending.startedAt).coerceAtLeast(0).toDouble())}"
+        statusView?.text = busyMessage
+        if (screen == "Chat" && chat.id == pending.chatId) {
+            val scroll = body.parent as? ScrollView
+            val wasAtBottom = scroll != null && body.height - (scroll.scrollY + scroll.height) < dp(48)
+            val content = pending.progress.text.ifEmpty { pending.progress.stage }
+            streamingTextView?.let { if (it.text.toString() != content) it.text = content }
+            streamingTimingView?.text = status
+            if (wasAtBottom) scroll?.post {
+                if (screen == "Chat" && chat.id == pending.chatId && body.parent === scroll) scroll.smoothScrollTo(0, body.height)
+            }
+        }
+    }
+
     private fun generate() {
         if (busy) return
         if (imageStore.running()) { toast("Wait for image generation to finish, or cancel it first."); return }
@@ -558,18 +614,35 @@ class MainActivity : Activity() {
         val replyId = appendTurn(prompt)
         val chatId = chat.id
         val context = textConversationContext(history)
+        pendingGeneration = PendingGeneration(chatId, replyId, SystemClock.elapsedRealtime(), GenerationProgress("Starting…"))
         render()
+        uiHandler.removeCallbacks(generationHeartbeat); uiHandler.post(generationHeartbeat)
         worker.execute {
-            val start = SystemClock.elapsedRealtime()
-            val result = runCatching { engine.generate(model, context, processor, chatId) }
+            var metrics: GenerationMetrics? = null
+            var lastUiUpdate = 0L
+            var lastStage = ""
+            val result = runCatching { engine.generate(model, context, processor, chatId) { progress ->
+                progress.metrics?.let { metrics = it }
+                val now = SystemClock.elapsedRealtime()
+                if (progress.stage != lastStage || now - lastUiUpdate >= 80 || progress.metrics != null) {
+                    lastUiUpdate = now; lastStage = progress.stage
+                    runOnUiThread {
+                        val pending = pendingGeneration
+                        if (!destroyed && pending?.replyId == replyId && pending.chatId == chatId) {
+                            pending.progress = progress; refreshGenerationViews()
+                        }
+                    }
+                }
+            } }
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
                 busy = false
+                uiHandler.removeCallbacks(generationHeartbeat); pendingGeneration = null
                 saveDraft()
                 result.onSuccess { response ->
-                    chats.finish(chatId, replyId, response)
+                    chats.finish(chatId, replyId, response, metrics = metrics)
                     reloadChat()
-                    toast("Generated locally in ${(SystemClock.elapsedRealtime() - start) / 1000}s")
+                    toast("Generated locally. Tap the reply’s timing for performance details.")
                 }.onFailure { error ->
                     val failure = explainTextFailure(error, processor)
                     chats.finish(chatId, replyId, failure.message, failed = true)
@@ -942,9 +1015,10 @@ class MainActivity : Activity() {
         outState.putString("pendingModelRole", pendingModelRole); outState.putString("pendingImageFamily", pendingImageFamily); outState.putString("pendingExport", pendingExport)
         super.onSaveInstanceState(outState)
     }
-    override fun onResume() { super.onResume(); checkAppUpdates(); uiHandler.removeCallbacks(imageHealthCheck); uiHandler.post(imageHealthCheck) }
-    override fun onStop() { saveDraft(); uiHandler.removeCallbacks(imageHealthCheck); super.onStop(); recognizer?.cancel(); listening = false; tts?.stop() }
+    override fun onResume() { super.onResume(); if (pendingGeneration != null) { uiHandler.removeCallbacks(generationHeartbeat); uiHandler.post(generationHeartbeat) }; checkAppUpdates(); uiHandler.removeCallbacks(imageHealthCheck); uiHandler.post(imageHealthCheck) }
+    override fun onStop() { uiHandler.removeCallbacks(generationHeartbeat); saveDraft(); uiHandler.removeCallbacks(imageHealthCheck); super.onStop(); recognizer?.cancel(); listening = false; tts?.stop() }
     override fun onDestroy() {
+        uiHandler.removeCallbacks(generationHeartbeat)
         destroyed = true; updateWorker.shutdownNow(); recognizer?.destroy(); tts?.shutdown()
         uiHandler.removeCallbacks(imageHealthCheck); unregisterReceiver(imageUpdates)
         worker.execute { engine.close() }; worker.shutdown()

@@ -14,3 +14,5 @@
 -keep class app.pocket.local.SavedChat { *; }
 -keep class app.pocket.local.ChatLine { *; }
 -keep enum app.pocket.local.ModelRole { *; }
+
+-keep class app.pocket.local.GenerationMetrics { *; }
