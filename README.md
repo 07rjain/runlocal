@@ -80,6 +80,10 @@ Tests cover container inspection, Hugging Face resolution, resumable verified do
 
 See [the rc4 validation record](docs/VALIDATION-rc4.txt) for the candidate's exact results. Compilation and unit tests do not establish successful model inference on a phone. The local emulator cannot run with the current host's missing KVM support; Android UI, speech, grants, service lifecycle, image outputs, and thermal/performance behavior still need device testing.
 
+## Website
+
+The landing page in [`website/`](website/) is plain HTML/CSS with no build step and no analytics. It is published through GitHub Pages at https://07rjain.github.io/runlocal/ by `.github/workflows/pages.yml` whenever `website/` changes on `main`. `python3 scripts/check_website.py website` validates markup, local references and in-page anchors; the Python test suite runs it. The page's small script reads only the public GitHub Releases API in the visitor's browser to show the newest stable release, and falls back to the Releases page link otherwise.
+
 ## Releases and update notifications
 
 [CHANGELOG.md](CHANGELOG.md) records the development versions. [AGENTS.md](AGENTS.md) explains the stack, architecture, invariants and validation workflow for coding agents. [RELEASING.md](RELEASING.md) covers signed/minified APKs, protected signing secrets, versioning, draft releases and update metadata.

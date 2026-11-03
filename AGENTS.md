@@ -22,6 +22,8 @@ Read README.md, CHANGELOG.md and V1-READINESS.md before changing release behavio
 
 ## Validation and releases
 
+`website/` is the static GitHub Pages landing page: plain HTML/CSS/JS, no build step, no analytics, no external scripts; keep its claims consistent with README.md and the current candidate status. `scripts/check_website.py` validates it.
+
 Use `./gradlew :app:testDebugUnitTest :app:assembleDebug :app:lintDebug -Prunlocal.abis=arm64-v8a --max-workers=2` and `python3 -m unittest discover -s scripts -p 'test_*.py'`. Run tests meaningful to the change; no need to download multi-GB models for UI-only changes. Default tests skip optional live/native inference checks.
 
 Never use `-Pandroid.injected.build.abi` for shared APKs: it can mark APKs testOnly and cause normal installation to fail. Package normal outputs with scripts/package_apk.py, supplying --previous for signer continuity. Verify standalone/non-test-only ARM64 and 16 KB alignment. A compile/unit-test pass does not verify phone UI or inference. Report missing emulator/KVM/device testing candidly.

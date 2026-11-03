@@ -2,6 +2,11 @@
 
 Versions are ordered newest first. Earlier entries reconstruct the local development artifacts and notes; they are not claims of prior public GitHub releases. Candidate versions remain experimental until device acceptance.
 
+## [Unreleased]
+
+### Added
+- Static landing page in `website/` with a GitHub Pages deployment workflow and a markup/link checker. No app changes.
+
 ## [1.0.0-rc4] - 2026-11-03
 
 ### Added
