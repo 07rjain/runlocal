@@ -51,7 +51,7 @@ Manual image component assignment and removal are under **Models → Advanced**.
 
 ## Build and verify
 
-Requirements: JDK 17+, Android SDK platform 36, NDK 28.2.13676358, CMake 3.22.1, and `ANDROID_HOME` or an untracked `local.properties` with `sdk.dir`. Pinned native revisions are recorded in `native-deps.lock`.
+Requirements: JDK 21+ (the LiteRT dependency’s JVM classes require Java 21 for host tests), Android SDK platform 36, NDK 28.2.13676358, CMake 3.22.1, and `ANDROID_HOME` or an untracked `local.properties` with `sdk.dir`. Pinned native revisions are recorded in `native-deps.lock`.
 
 ```sh
 ./scripts/bootstrap-native.sh

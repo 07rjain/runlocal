@@ -6,6 +6,7 @@ Versions are ordered newest first. Earlier entries reconstruct the local develop
 
 ### Fixed
 - Native bootstrap no longer mistakes a fresh no-checkout clone for user modifications; existing changes remain protected.
+- CI and release workflows use Java 21, matching the LiteRT dependency’s host-test bytecode requirements while retaining the Java 17 Android target.
 - CI Android setup installs platform-tools without requesting the removed SDK tools package.
 - Release signing path is resolved on the runner, instead of using an unsupported job-level context.
 - Workflow validation now checks GitHub expressions with actionlint.
