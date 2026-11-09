@@ -1,0 +1,50 @@
+RunLocal 1.0.0-rc5 · versionCode 11 · ARM64 · Android 12+
+
+Startup-crash investigation
+---------------------------
+Inspected the actual published rc4 release APK downloaded from GitHub, not only
+the source manifest. Its permissions omit android.permission.ACCESS_NETWORK_STATE.
+
+MainActivity.onResume calls checkAppUpdates, which synchronously invokes
+UpdateNotifications.schedule. Automatic checks default to enabled in official
+builds. The scheduler creates a persisted job with NETWORK_TYPE_ANY. On Android
+14+ for apps targeting API 34+, scheduling a network-constrained job without
+ACCESS_NETWORK_STATE throws SecurityException. The exception is not caught on
+this startup path. RunLocal targets API 36. No model needs to be loaded for this
+failure path to execute.
+
+Platform requirement:
+https://developer.android.com/about/versions/14/behavior-changes-14#jobscheduler
+
+Fix: declare the normal ACCESS_NETWORK_STATE permission, keeping update behavior
+and data unchanged. No runtime permission dialog is needed for this permission.
+The packaging verifier now rejects APKs missing it. Running the new verifier
+against the downloaded rc4 APK fails with the expected missing-permission error.
+The candidate retains app.pocket.local and increases the version code from 10
+to 11. Signing continuity was checked against the actual published rc4 APK.
+
+Validation completed:
+- Debug unit tests: 80 total, 75 passed, 5 optional integration tests skipped.
+- Release unit tests: 80 total, 75 passed, 5 optional integration tests skipped.
+- Python script suite: 11 tests passed, including missing-permission rejection.
+- Actual published rc4 APK rejected by the updated packaging verifier.
+
+- Debug APK assembly completed before the interrupted combined build; both
+  debug/release unit test result files report zero failures/errors.
+- Remaining :app:assembleRelease :app:lintDebug :app:lintRelease checks completed
+  successfully with Java 21 and -Prunlocal.abis=arm64-v8a --max-workers=2.
+- Signed/minified rc5 APK passed standalone/non-test-only ARM64 verification,
+  signature continuity with published rc4, and 16 KB ZIP/native ELF alignment.
+- apkanalyzer confirms ACCESS_NETWORK_STATE is present in the packaged rc5 APK.
+- APK SHA-256: 57dcff9ba3111c04bbcd43b83b2bf66be2680f0b6ba8da9c535e9e99978148fb
+- Signing certificate SHA-256: 4dc9269b18a7432cd749fe1a5bf73fb62cdcb126f501b3b84bdf598c75829e9f
+- Fixed APK: dist/runlocal-1.0.0-rc5-arm64.apk. Prepared locally; not published.
+
+Limits: no crash log from the user's phone was available, so the platform
+failure above is established from APK/code inspection and the documented Android
+contract, not from an observed phone stack trace. Additional failures cannot be
+excluded. The device tool could not boot Pocket_API_35; retrying its suggested
+command failed with "KVM requires a CPU that supports vmx or svm". No working
+emulator or physical phone was available for launch, UI or inference testing.
+Full phone acceptance, native model compatibility, offline speech and MOSS
+generation remain unverified. This candidate is not stable v1.

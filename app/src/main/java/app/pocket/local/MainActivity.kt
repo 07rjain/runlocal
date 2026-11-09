@@ -56,6 +56,7 @@ class MainActivity : Activity() {
     private lateinit var body: LinearLayout
     private lateinit var navigation: LinearLayout
     private lateinit var chats: ChatRepository
+    private lateinit var speechTurn: SpeechChatTurn
     private lateinit var chat: SavedChat
     private var history: MutableList<ChatLine>
         get() = chat.messages
@@ -73,7 +74,7 @@ class MainActivity : Activity() {
     private var speechReady = false
     private var recognizer: SpeechRecognizer? = null
     private var listening = false
-    private var listenAction: TextView? = null
+    private var listenAction: FrameLayout? = null
     private data class PendingGeneration(val chatId: String, val replyId: String, val startedAt: Long, var progress: GenerationProgress)
     private var pendingGeneration: PendingGeneration? = null
     private var streamingTextView: TextView? = null
@@ -87,6 +88,22 @@ class MainActivity : Activity() {
     private var destroyed = false
     private val updateWorker = Executors.newSingleThreadExecutor()
     private var checkingUpdates = false
+    private lateinit var speechModels: SpeechModelStore
+    private lateinit var speechClient: SpeechClient
+    private var speechStatusView: TextView? = null
+    private var speechStatus = ""
+    private var speechActive = false
+    private var speechState = ""
+    private var speechOwner = ""
+    private var speechLaunch = 0
+    private var sendControl: FrameLayout? = null
+    private var libraryStatus: TextView? = null
+    private var modelFilter = "All"
+    private var modelSheet: android.app.Dialog? = null
+    private var renderedChatId = ""
+    private var speechDownloading = false
+    private val speechDownloadCancelled = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val speechSetupWorker = Executors.newSingleThreadExecutor()
 
     @android.annotation.SuppressLint("UnspecifiedRegisterReceiverFlag") // API 31–32 use a signature permission instead.
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -94,6 +111,18 @@ class MainActivity : Activity() {
         store = ModelStore(this)
         imageStore = ImageStore(this)
         phoneLibrary = PhoneModelLibrary(this)
+        speechModels = SpeechModelStore(this)
+        speechClient = SpeechClient(this) { state, message ->
+            if (!destroyed) {
+                speechState = state
+                speechActive = state in listOf("generating", "playing")
+                updateSpeechStatus(message)
+                saveDraft()
+                val changed = speechTurn.event(state, message)
+                if (changed) { reloadChat(); render() } else refreshSendControl()
+                if (state == "error") notice("Speech could not run", message)
+            }
+        }
         engine = LocalEngine(cacheDir.absolutePath, LiteRtTextSessionFactory(cacheDir.absolutePath) {
             ActivityManager.MemoryInfo().also { getSystemService(ActivityManager::class.java).getMemoryInfo(it) }.availMem
         })
@@ -103,6 +132,7 @@ class MainActivity : Activity() {
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(imageUpdates, IntentFilter(ImageGenerationService.UPDATE), RECEIVER_NOT_EXPORTED)
         else registerReceiver(imageUpdates, IntentFilter(ImageGenerationService.UPDATE), "$packageName.INTERNAL_UPDATES", null)
         chats = ChatRepository(File(filesDir, "conversations"))
+        speechTurn = SpeechChatTurn(chats)
         if (chats.all().isEmpty()) {
             val migrated = chats.create()
             migrated.messages = store.loadHistory()
@@ -121,7 +151,8 @@ class MainActivity : Activity() {
         }
         chat = chats.selected() ?: chats.all().first()
         screen = savedInstanceState?.getString("screen")?.takeIf { it == "Models" } ?: "Chat"
-        mode = if (chat.model.startsWith("image:")) "Image" else "Text"
+        mode = modeForChat()
+        modelFilter = savedInstanceState?.getString("modelFilter") ?: "All"
         draft = savedInstanceState?.getString("draft") ?: chat.draft
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         root = column().apply { setBackgroundColor(paper) }
@@ -170,8 +201,15 @@ class MainActivity : Activity() {
         clickable(this, if (primary) green else pale, 15, action)
     }
     private fun label(value: String) = text(value.uppercase(Locale.ROOT), 10f, muted, true).apply { letterSpacing = .14f }
-    private fun chip(value: String, backgroundColor: Int = pale): TextView = text(value, 10f, green, true).apply {
-        background = shape(backgroundColor, 9); setPadding(dp(9), dp(5), dp(9), dp(5)); gravity = Gravity.CENTER
+    private fun iconButton(kind: String, description: String, primary: Boolean = false, action: () -> Unit) = FrameLayout(this).apply {
+        contentDescription = description; minimumWidth = dp(48); minimumHeight = dp(48)
+        addView(Symbol(kind, if (primary) Color.WHITE else green), FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER))
+        clickable(this, if (primary) green else Color.TRANSPARENT, 16, action)
+    }
+    private fun modeForChat() = when {
+        chat.model.startsWith("image:") -> "Image"
+        chat.model.startsWith("speech:") -> "Speech"
+        else -> "Text"
     }
     private fun saveDraft() {
         editor?.let { draft = it.text.toString() }
@@ -182,10 +220,18 @@ class MainActivity : Activity() {
     }
     private fun render() {
         autoSelectModel()
-        root.removeAllViews(); editor = null; statusView = null; listenAction = null; imagePane = null
+        val previousScroll = if (::body.isInitialized) body.parent as? ScrollView else null
+        val sameChat = screen == "Chat" && renderedChatId == chat.id
+        val previousY = previousScroll?.scrollY ?: 0
+        val followBottom = !sameChat || previousScroll == null || body.height - (previousY + previousScroll.height) < dp(48)
+        val restoreFocus = sameChat && editor?.hasFocus() == true
+        val cursor = editor?.selectionStart ?: 0
+        renderedChatId = if (screen == "Chat") chat.id else ""
+        root.removeAllViews(); editor = null; statusView = null; listenAction = null
+        speechStatusView = null; sendControl = null; libraryStatus = null
         streamingTextView = null; streamingTimingView = null
         val scroll = ScrollView(this).apply { isFillViewport = true; clipToPadding = false }
-        body = column().apply { setPadding(dp(22), dp(12), dp(22), dp(24)) }
+        body = column().apply { setPadding(dp(20), dp(16), dp(20), dp(24)) }
         scroll.addView(body)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         if (screen == "Chat") chatPage() else models()
@@ -199,37 +245,40 @@ class MainActivity : Activity() {
         navigation = row().apply { setPadding(dp(12), dp(8), dp(12), dp(8)); background = shape(Color.WHITE, 0) }
         listOf("Chat" to "chat", "Models" to "models").forEach { (title, icon) ->
             val selected = screen == title
-            val item = column().apply { gravity = Gravity.CENTER; setPadding(0, dp(7), 0, dp(7)); contentDescription = title }
+            val item = row().apply { gravity = Gravity.CENTER; contentDescription = title; isSelected = selected }
             item.addView(Symbol(icon, if (selected) green else muted), LinearLayout.LayoutParams(dp(22), dp(22)))
-            item.addView(text(title, 10f, if (selected) green else muted, selected).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
+            item.addView(text(title, 13f, if (selected) green else muted, selected), LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(8) })
             clickable(item, if (selected) pale else Color.WHITE, 16) { navigate(title) }
-            navigation.addView(item, LinearLayout.LayoutParams(0, dp(64), 1f))
+            navigation.addView(item, LinearLayout.LayoutParams(0, dp(52), 1f))
         }
         add(root, navigation)
-    }
-
-    private fun header() {
-        val header = row()
-        val brand = row()
-        brand.addView(Symbol("pocket", green), LinearLayout.LayoutParams(dp(28), dp(28)))
-        brand.addView(text("RunLocal", 24f, ink, true), LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(8) })
-        header.addView(brand, LinearLayout.LayoutParams(0, -2, 1f))
-        header.addView(chip("●  ON DEVICE"))
-        add(body, header)
-        space(body, 28)
+        if (screen == "Chat") scroll.post {
+            if (followBottom) scroll.fullScroll(View.FOCUS_DOWN) else scroll.scrollTo(0, previousY)
+            if (restoreFocus) editor?.let { it.requestFocus(); it.setSelection(cursor.coerceIn(0, it.text.length)) }
+        }
     }
 
     private fun autoSelectModel() {
         if (chat.model.isNotEmpty()) return
         if (store.selected() == null) store.models().minByOrNull { it.size }?.let { store.selectedId = it.id }
         if (store.selected() != null) { mode = "Text"; bindSelectedModel() }
-        else imageStore.configuredProfiles().firstOrNull()?.let { imageStore.selectLocalProfile(it); mode = "Image"; bindSelectedModel() }
+        else {
+            val profile = imageStore.configuredProfiles().firstOrNull()
+            if (profile != null) { imageStore.selectLocalProfile(profile); mode = "Image"; bindSelectedModel() }
+            else SpeechModelCatalog.models.firstOrNull { speechModels.installed(it) }?.let {
+                speechModels.selectedId = it.id; mode = "Speech"; bindSelectedModel()
+            }
+        }
     }
 
     private fun bindSelectedModel() {
         val key: String
         val title: String
-        if (mode == "Image" && imageStore.family in imageStore.configuredProfiles()) {
+        if (mode == "Speech") {
+            val model = selectedSpeechModel() ?: return
+            val voice = model.voices.first { it.id == speechModels.voice(model) }
+            key = speechChatKey(model, voice); title = "${model.title} · ${voice.name}"
+        } else if (mode == "Image" && imageStore.family in imageStore.configuredProfiles()) {
             key = "image:${imageStore.family}"; title = imageStore.profileLabel(imageStore.family).substringAfter('/')
         } else {
             val model = store.selected() ?: return
@@ -265,18 +314,107 @@ class MainActivity : Activity() {
         return reply.id
     }
 
+    private fun libraryEntries(): List<LibraryEntry> = buildList {
+        store.models().forEach { model ->
+            add(LibraryEntry("text:${model.id}", model.name, LibraryKind.TEXT, "${size(model.size)} · LiteRT-LM", model.size))
+        }
+        SpeechModelCatalog.models.filter { speechModels.installed(it) }.forEach { spec ->
+            add(LibraryEntry("speech:${spec.id}", spec.title, LibraryKind.VOICE,
+                "${spec.voices.joinToString { it.name }} · ${size(spec.downloadBytes)}", spec.downloadBytes))
+        }
+        imageStore.configuredProfiles().forEach { profile ->
+            val files = (imageStore.roles(profile) + ModelRole.LORA).mapNotNull { imageStore.assigned(it, profile) }.distinctBy { it.id }
+            val bytes = files.sumOf { it.file.length() }
+            add(LibraryEntry("image:$profile", imageStore.profileLabel(profile).substringAfter('/'), LibraryKind.IMAGE,
+                "${size(bytes)} · ${files.size} files", bytes))
+        }
+    }
+
+    private fun useLibraryEntry(entry: LibraryEntry) {
+        saveDraft()
+        when (entry.kind) {
+            LibraryKind.TEXT -> {
+                store.selectedId = entry.key.removePrefix("text:"); mode = "Text"; bindSelectedModel(); navigate("Chat")
+            }
+            LibraryKind.IMAGE -> runCatching {
+                imageStore.selectLocalProfile(entry.key.removePrefix("image:")); mode = "Image"; bindSelectedModel(); navigate("Chat")
+            }.onFailure { notice("Could not select model", it.message.orEmpty()) }
+            LibraryKind.VOICE -> chooseSpeechVoice(SpeechModelCatalog.find(entry.key.removePrefix("speech:")))
+        }
+    }
+
+    private fun chooseSpeechVoice(spec: SpeechModelSpec) {
+        AlertDialog.Builder(this).setTitle("Choose a voice")
+            .setItems(spec.voices.map { "${it.name} · ${it.language}" }.toTypedArray()) { _, index ->
+                selectSpeechModel(spec, spec.voices[index])
+            }.setNegativeButton("Cancel", null).show()
+    }
+
+    private fun selectSpeechModel(spec: SpeechModelSpec, voice: SpeechVoice) {
+        saveDraft(); stopSpeech()
+        speechModels.selectedId = spec.id; speechModels.selectVoice(spec, voice.id)
+        mode = "Speech"; bindSelectedModel(); navigate("Chat")
+    }
+
     private fun showModelPicker() {
         saveDraft()
-        val texts = store.models()
-        val profiles = imageStore.configuredProfiles()
-        val names = texts.map { "Text · ${it.name}" } + profiles.map { "Image · ${imageStore.profileLabel(it).substringAfter('/')}" } + "Add a model…"
-        AlertDialog.Builder(this).setTitle("Choose a local model").setItems(names.toTypedArray()) { _, index ->
-            when {
-                index < texts.size -> { store.selectedId = texts[index].id; mode = "Text"; bindSelectedModel(); render() }
-                index < texts.size + profiles.size -> { imageStore.selectLocalProfile(profiles[index - texts.size]); mode = "Image"; bindSelectedModel(); render() }
-                else -> navigate("Models")
+        showPanel("Choose a model") { panel, dialog ->
+            val entries = libraryEntries()
+            if (entries.isEmpty()) add(panel, text("Add your first model to get started.", 14f, muted), top = 8)
+            LibraryKind.entries.forEach { kind ->
+                val models = entries.filter { it.kind == kind }
+                if (models.isNotEmpty()) add(panel, label(if (kind == LibraryKind.TEXT) "Text chat" else if (kind == LibraryKind.VOICE) "Text to speech" else "Image generation"), top = 18)
+                models.forEach { entry ->
+                    if (kind == LibraryKind.VOICE) {
+                        val spec = SpeechModelCatalog.find(entry.key.removePrefix("speech:"))
+                        spec.voices.forEach { voice ->
+                            add(panel, pickerRow("${spec.title} · ${voice.name}", voice.language, chat.model == speechChatKey(spec, voice)) {
+                                dialog.dismiss(); selectSpeechModel(spec, voice)
+                            }, top = 8)
+                        }
+                    } else add(panel, pickerRow(entry.title, entry.detail, chat.model == entry.key) {
+                        dialog.dismiss(); useLibraryEntry(entry)
+                    }, top = 8)
+                }
             }
-        }.setNegativeButton("Close", null).show()
+            add(panel, button("＋  Add a model", false) { dialog.dismiss(); navigate("Models"); showAddModel() }, top = 24)
+        }
+    }
+
+    private fun pickerRow(title: String, detail: String, selected: Boolean = false, action: () -> Unit): View = row().apply {
+        setPadding(dp(14), dp(12), dp(12), dp(12)); minimumHeight = dp(64)
+        val copy = column()
+        add(copy, text(title, 15f, ink, true)); add(copy, text(detail, 12f, muted), top = 4)
+        addView(copy, LinearLayout.LayoutParams(0, -2, 1f))
+        addView(Symbol(if (selected) "check" else "chevron", green), LinearLayout.LayoutParams(dp(20), dp(20)))
+        clickable(this, if (selected) pale else paper, 16, action)
+    }
+
+    private fun showPanel(title: String, content: (LinearLayout, android.app.Dialog) -> Unit) {
+        modelSheet?.dismiss()
+        val dialog = android.app.Dialog(this)
+        modelSheet = dialog
+        val panel = column().apply { setPadding(dp(20), dp(12), dp(20), dp(24)); background = shape(Color.WHITE, 24) }
+        val heading = row()
+        heading.addView(text(title, 22f, ink, true), LinearLayout.LayoutParams(0, -2, 1f))
+        heading.addView(iconButton("close", "Close $title") { dialog.dismiss() }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        add(panel, heading)
+        val contents = column().apply { setPadding(0, dp(4), 0, dp(8)) }
+        content(contents, dialog)
+        // Keep the heading and close control visible while setup content scrolls.
+        val scroll = ScrollView(this).apply { isFillViewport = false; addView(contents) }
+        panel.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        dialog.setContentView(panel)
+        dialog.setOnDismissListener { if (modelSheet === dialog) { modelSheet = null; imagePane = null } }
+        dialog.window?.apply {
+            setBackgroundDrawableResource(android.R.color.transparent)
+            setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        }
+        dialog.show()
+        dialog.window?.apply {
+            setGravity(Gravity.BOTTOM)
+            setLayout(-1, (resources.displayMetrics.heightPixels * .85).toInt())
+        }
     }
 
     private fun showHistory() {
@@ -291,7 +429,7 @@ class MainActivity : Activity() {
                 setPadding(dp(12), dp(14), dp(12), dp(14)); maxLines = 3
                 clickable(this, if (saved.id == chat.id) pale else paper, 12) {
                     chats.select(saved.id); chat = chats.get(saved.id) ?: saved; draft = chat.draft
-                    mode = if (chat.model.startsWith("image:")) "Image" else "Text"
+                    mode = modeForChat()
                     screen = "Chat"; dialog.dismiss(); render()
                 }
                 setOnLongClickListener {
@@ -313,7 +451,7 @@ class MainActivity : Activity() {
         add(panel, button("About & device", false) {
             dialog.dismiss()
             val info = ActivityManager.MemoryInfo().also { getSystemService(ActivityManager::class.java).getMemoryInfo(it) }
-            notice("RunLocal ${BuildConfig.VERSION_NAME}", "${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE}\n${size(info.totalMem)} RAM · ${size(StatFs(filesDir.path).availableBytes)} free storage\n\nModels download from Hugging Face. Conversations and inference stay on this phone.\n\nText: LiteRT-LM with CPU/GPU choice. Images: SD 1.x; MOSS experimental. Speech: installed Android offline services. Video and custom speech models are not supported yet.")
+            notice("RunLocal ${BuildConfig.VERSION_NAME}", "${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE}\n${size(info.totalMem)} RAM · ${size(StatFs(filesDir.path).availableBytes)} free storage\n\nModels download from Hugging Face. Conversations and inference stay on this phone.\n\nText: LiteRT-LM with CPU/GPU choice. Images: SD 1.x; MOSS experimental. Speech: Android offline voices and supported downloaded models, starting with Underdog Woof (non-commercial license). Video and arbitrary speech model formats are not supported.")
         }, top = 12)
         dialog.setContentView(panel)
         dialog.window?.apply { setBackgroundDrawableResource(android.R.color.transparent); setLayout((resources.displayMetrics.widthPixels * .88).toInt().coerceAtMost(dp(360)), -1); setGravity(Gravity.START); addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND); setDimAmount(.35f) }
@@ -345,96 +483,180 @@ class MainActivity : Activity() {
     }
 
     private fun chatPage() {
-        val top = row().apply { setPadding(dp(12), dp(8), dp(12), dp(8)); setBackgroundColor(paper) }
-        top.addView(button("☰", false) { showHistory() }.apply { contentDescription = "Chat history" }, LinearLayout.LayoutParams(dp(52), dp(52)))
-        top.addView(text("${chat.modelLabel.ifBlank { "Choose a model" }}  ▾", 15f, green, true).apply {
-            maxLines = 2; setPadding(dp(12), dp(8), dp(12), dp(8)); minHeight = dp(48); gravity = Gravity.CENTER_VERTICAL
-            clickable(this, paper, 12) { showModelPicker() }; contentDescription = "Selected model. Tap to change model"
-        }, LinearLayout.LayoutParams(0, -2, 1f))
-        top.addView(button("＋", false) { newChat() }.apply { contentDescription = "New conversation" }, LinearLayout.LayoutParams(dp(52), dp(52)))
-        root.addView(top, 0)
-        if (chat.model.startsWith("text:")) {
-            val processing = text("Processing · ${selectedProcessor().title}  ▾", 12f, green, true).apply {
-                setPadding(dp(22), dp(8), dp(22), dp(10)); minHeight = dp(48)
-                contentDescription = "Text processing: ${selectedProcessor().title}. Tap to choose CPU or GPU."
-                clickable(this, paper, 0) { showProcessorPicker() }
-            }
-            root.addView(processing, 1)
-        } else if (chat.model.startsWith("image:")) {
-            root.addView(text("Image processing · CPU", 12f, muted).apply { setPadding(dp(22), dp(8), dp(22), dp(10)) }, 1)
+        val isImage = chat.model.startsWith("image:")
+        val isSpeech = chat.model.startsWith("speech:")
+        val voiceSelection = speechChatSelection(chat.model)
+        val top = row().apply { setPadding(dp(12), dp(4), dp(12), dp(8)) }
+        top.addView(iconButton("history", "Chat history") { showHistory() }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        val model = column().apply { setPadding(dp(12), dp(6), dp(8), dp(6)) }
+        add(model, text(chat.modelLabel.ifBlank { "Choose a model" } + "  ▾", 16f, ink, true).apply {
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+        })
+        val subtitle = when {
+            isSpeech -> "Text to speech · ${voiceSelection?.second?.name ?: "Voice unavailable"}"
+            isImage -> "Image generation · CPU"
+            chat.model.isNotBlank() -> "Text chat · ${selectedProcessor().title}"
+            else -> "Text, voice & images · on device"
         }
+        add(model, text(subtitle, 11f, muted), top = 2)
+        clickable(model, Color.TRANSPARENT, 12) { showModelPicker() }
+        model.contentDescription = "${chat.modelLabel.ifBlank { "Choose a model" }}. $subtitle. Change model"
+        top.addView(model, LinearLayout.LayoutParams(0, -2, 1f))
+        top.addView(iconButton("plus", "New conversation") { newChat() }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        root.addView(top, 0)
         if (history.isEmpty()) {
-            space(body, 40)
-            add(body, text("What’s on your mind?", 27f, ink, true))
-            add(body, text(if (chat.model.isBlank()) "Add a model in Models, then start a conversation." else if (chat.model.startsWith("image:")) "Describe an image. Each prompt creates an image locally." else "Ask a question and keep the conversation going. Everything runs on your phone.", 14f, muted), top = 12)
-            if (chat.model.isBlank()) add(body, button("Add your first model") { navigate("Models") }, top = 24)
+            space(body, 56)
+            add(body, FrameLayout(this).apply {
+                addView(Symbol(if (isSpeech) "voice" else if (isImage) "image" else "pocket", green).apply {
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                }, FrameLayout.LayoutParams(dp(36), dp(36)))
+            }, height = 36)
+            add(body, text(when {
+                isSpeech -> "Give your words a voice."
+                isImage -> "What will you create?"
+                else -> "What’s on your mind?"
+            }, 28f, ink, true), top = 24)
+            add(body, text(when {
+                chat.model.isBlank() -> "Choose a model to chat, speak text or create an image."
+                isSpeech -> "Type below and send to hear ${voiceSelection?.second?.name ?: "your selected voice"}."
+                isImage -> "Describe an image. Each prompt creates something new."
+                else -> "A conversation that stays on your phone."
+            }, 15f, muted), top = 12)
+            if (chat.model.isBlank()) add(body, button("Choose a model", false) { showModelPicker() }, top = 24)
         }
         history.forEach { message ->
-            val box = column().apply { setPadding(dp(16), dp(14), dp(16), dp(14)); background = shape(if (message.role == "user") pale else Color.WHITE, 18) }
-            add(box, label(if (message.role == "user") "You" else if (message.state == "pending") "Generating locally" else "RunLocal"))
-            val running = pendingGeneration?.takeIf { it.chatId == chat.id && it.replyId == message.id }
-            val messageText = text(if (running != null) running.progress.text.ifEmpty { running.progress.stage } else message.text,
-                15f, if (message.state == "error") 0xff8c4a28.toInt() else ink).apply { setTextIsSelectable(true) }
-            add(box, messageText, top = 6)
-            if (message.state == "pending") {
-                val progressRow = row()
-                progressRow.addView(ProgressBar(this), LinearLayout.LayoutParams(dp(18), dp(18)))
-                val timing = text(if (running != null) generationStatus(running) else "Working locally…", 12f, muted).apply {
-                    setPadding(dp(10), dp(6), 0, dp(6)); accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
-                }
-                progressRow.addView(timing, LinearLayout.LayoutParams(0, -2, 1f)); add(box, progressRow, top = 8)
-                if (running != null) { streamingTextView = messageText; streamingTimingView = timing }
+            val user = message.role == "user"
+            val box = column().apply {
+                setPadding(dp(16), dp(14), dp(16), dp(14)); background = shape(if (user) pale else Color.WHITE, 20)
             }
-            message.metrics?.let { metrics ->
-                add(box, text(metrics.caption() + "  ⓘ", 12f, green).apply {
-                    minHeight = dp(48); gravity = Gravity.CENTER_VERTICAL
+            if (!user) add(box, label(if (isSpeech) "Voice · ${voiceSelection?.second?.name ?: "Speech"}" else "RunLocal"))
+            val running = pendingGeneration?.takeIf { it.chatId == chat.id && it.replyId == message.id }
+            if (isSpeech && !user && message.state == "complete") {
+                val play = row()
+                play.addView(Symbol("play", green), LinearLayout.LayoutParams(dp(24), dp(24)))
+                play.addView(text("Play again", 15f, green, true), LinearLayout.LayoutParams(0, -2, 1f).apply { leftMargin = dp(12) })
+                play.minimumHeight = dp(48)
+                clickable(play, Color.WHITE, 12) { playSpeechReading(message.text) }
+                play.contentDescription = "Read this text again with the conversation's voice"
+                play.addView(text("Text", 12f, muted).apply {
+                    minHeight = dp(48); gravity = Gravity.CENTER_VERTICAL; isClickable = true; isFocusable = true
+                    setOnClickListener { notice("Spoken text", message.text) }
+                    contentDescription = "View spoken text"; setPadding(dp(12), 0, dp(4), 0)
+                }, LinearLayout.LayoutParams(-2, -2))
+                add(box, play, top = 8)
+            } else {
+                val content = if (isSpeech && !user && message.state == "pending") "Preparing speech…"
+                    else if (running != null) running.progress.text.ifEmpty { running.progress.stage } else message.text
+                val messageText = text(content, 15f, if (message.state == "error") 0xff8c4a28.toInt() else ink).apply { setTextIsSelectable(true) }
+                add(box, messageText, top = if (user) 0 else 8)
+                if (message.state == "pending") {
+                    val progressRow = row()
+                    progressRow.addView(ProgressBar(this), LinearLayout.LayoutParams(dp(16), dp(16)))
+                    val timing = text(if (running != null) generationStatus(running) else "Working locally…", 12f, muted).apply {
+                        setPadding(dp(10), dp(6), 0, dp(6)); accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+                    }
+                    progressRow.addView(timing, LinearLayout.LayoutParams(0, -2, 1f)); add(box, progressRow, top = 8)
+                    if (running != null) { streamingTextView = messageText; streamingTimingView = timing }
+                }
+            }
+            val hasListen = !isSpeech && !user && message.state == "complete" && message.image.isBlank()
+            message.metrics?.takeUnless { hasListen }?.let { metrics ->
+                add(box, text(metrics.caption() + "  ⓘ", 11f, muted).apply {
+                    minHeight = dp(48); gravity = Gravity.CENTER_VERTICAL; isClickable = true; isFocusable = true
                     contentDescription = "Generation speed and timing. Tap for details."
                     setOnClickListener { notice("Generation performance", metrics.details()) }
-                }, top = 8)
+                }, top = 4)
             }
             if (message.image.isNotBlank()) {
                 val file = File(message.image)
                 if (file.isFile) {
-                    val options = BitmapFactory.Options().apply { inSampleSize = 1 }
-                    BitmapFactory.decodeFile(file.path, options)?.let { bitmap -> add(box, ImageView(this).apply { setImageBitmap(bitmap); adjustViewBounds = true; contentDescription = "Image generated locally" }, top = 10) }
+                    BitmapFactory.decodeFile(file.path)?.let { bitmap -> add(box, ImageView(this).apply {
+                        setImageBitmap(bitmap); adjustViewBounds = true; contentDescription = "Image generated locally"
+                    }, top = 10) }
                     add(box, button("Save image", false) {
                         pendingExport = file.path
-                        startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply { type = "image/png"; addCategory(Intent.CATEGORY_OPENABLE); putExtra(Intent.EXTRA_TITLE, file.name) }, 202)
+                        startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                            type = "image/png"; addCategory(Intent.CATEGORY_OPENABLE); putExtra(Intent.EXTRA_TITLE, file.name)
+                        }, 202)
                     }, top = 8)
                 } else add(box, text("The image file is no longer available.", 12f, muted), top = 8)
-            } else if (message.role == "assistant" && message.state == "complete") {
-                add(box, text("Read aloud", 12f, green).apply { setPadding(0, dp(14), 0, dp(10)); minHeight = dp(48); setOnClickListener { speak(message.text) } }, top = 4)
+            } else if (hasListen) {
+                val listen = row().apply { minimumHeight = dp(48) }
+                val timing = text(message.metrics?.caption().orEmpty(), 11f, muted).apply {
+                    minHeight = dp(48); gravity = Gravity.CENTER_VERTICAL
+                    message.metrics?.let { metrics ->
+                        contentDescription = "Generation speed and timing. Tap for details."
+                        isClickable = true; isFocusable = true
+                        setOnClickListener { notice("Generation performance", metrics.details()) }
+                    }
+                }
+                listen.addView(timing, LinearLayout.LayoutParams(0, -2, 1f))
+                listen.addView(iconButton("speaker", "Read this reply aloud") { speak(message.text) }, LinearLayout.LayoutParams(dp(48), dp(48)))
+                add(box, listen, top = 4)
             }
-            add(body, box, top = 14)
+            body.addView(box, LinearLayout.LayoutParams(if (user) -2 else -1, -2).apply {
+                topMargin = dp(14); gravity = if (user) Gravity.END else Gravity.START
+                if (user) leftMargin = dp(24)
+            })
         }
-        val isImage = chat.model.startsWith("image:")
-        val composer = row().apply {
-            gravity = Gravity.BOTTOM
-            setPadding(dp(6), dp(6), dp(6), dp(6))
-            background = shape(Color.WHITE, 28, line)
+        val composer = column().apply {
+            setPadding(dp(8), dp(4), dp(8), dp(6)); background = shape(Color.WHITE, 24, line)
         }
-        val tools = button("＋", false) { showComposerTools(isImage) }.apply { contentDescription = "Message tools" }
-        composer.addView(tools, LinearLayout.LayoutParams(dp(48), dp(48)))
-        val messageInput = input(if (isImage) "Describe an image…" else "Message…", draft).apply {
-            minLines = 1; maxLines = 5; background = null; setPadding(dp(10), dp(12), dp(8), dp(12))
+        val messageInput = input(when {
+            isSpeech -> "Type something to say…"
+            isImage -> "Describe an image…"
+            else -> "Message…"
+        }, draft).apply {
+            minLines = 1; maxLines = 5; minHeight = dp(48); background = null
+            setPadding(dp(12), dp(12), dp(12), dp(8))
         }
-        editor = messageInput
-        composer.addView(messageInput, LinearLayout.LayoutParams(0, -2, 1f))
-        listenAction = button("Mic", false) { if (listening) recognizer?.stopListening() else startListening() }.apply {
-            textSize = 11f; contentDescription = "Dictate using on-device speech recognition"
+        editor = messageInput; add(composer, messageInput)
+        val controls = row()
+        controls.addView(iconButton("plus", "Message tools") { showComposerTools(isImage) }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        val credit = voiceSelection?.first ?: selectedSpeechModel()
+        if (credit != null) controls.addView(text(credit.credit + "  ↗", 11f, muted).apply {
+            minHeight = dp(48); gravity = Gravity.CENTER_VERTICAL; maxLines = 2
+            isClickable = true; isFocusable = true; setOnClickListener { openUrl(credit.creditUrl) }
+        }, LinearLayout.LayoutParams(0, -2, 1f).apply { leftMargin = dp(4); rightMargin = dp(4) })
+        else controls.addView(text("On device", 11f, muted), LinearLayout.LayoutParams(0, -2, 1f).apply { leftMargin = dp(6) })
+        listenAction = iconButton("voice", "Dictate on this device") {
+            if (listening) recognizer?.stopListening() else startListening()
         }
-        composer.addView(listenAction, LinearLayout.LayoutParams(dp(48), dp(48)))
-        val generatingImage = imageStore.running()
-        composer.addView(button(if (generatingImage) "■" else "↑") {
-            if (generatingImage) startService(Intent(this, ImageGenerationService::class.java).setAction(ImageGenerationService.CANCEL))
-            else if (isImage) sendImagePrompt() else generate()
-        }.apply {
-            contentDescription = if (generatingImage) "Cancel image generation" else "Send message"
-            isEnabled = generatingImage || (!busy && chat.model.isNotBlank())
-            alpha = if (isEnabled) 1f else .55f
-        }, LinearLayout.LayoutParams(dp(48), dp(48)).apply { leftMargin = dp(4) })
-        root.addView(composer, LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(14), dp(8), dp(14), dp(8)) })
-        (body.parent as? ScrollView)?.post { (body.parent as? ScrollView)?.fullScroll(View.FOCUS_DOWN) }
+        controls.addView(listenAction, LinearLayout.LayoutParams(dp(48), dp(48)))
+        sendControl = iconButton("send", "Send message", true) {
+            when {
+                imageStore.running() -> startService(Intent(this, ImageGenerationService::class.java).setAction(ImageGenerationService.CANCEL))
+                speechActive -> stopSpeech()
+                isSpeech -> sendSpeechPrompt()
+                isImage -> sendImagePrompt()
+                else -> generate()
+            }
+        }
+        controls.addView(sendControl, LinearLayout.LayoutParams(dp(48), dp(48)).apply { leftMargin = dp(4) })
+        add(composer, controls)
+        speechStatusView = text(speechStatus, 11f, green).apply {
+            setPadding(dp(12), dp(4), dp(12), dp(6)); accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+            visibility = if (showSpeechStatus()) View.VISIBLE else View.GONE
+        }
+        speechStatusView?.let { add(composer, it) }
+        root.addView(composer, LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(14), dp(6), dp(14), dp(8)) })
+        refreshSendControl(); refreshListenControl()
+    }
+
+    private fun refreshListenControl() {
+        (listenAction?.getChildAt(0) as? Symbol)?.showKind(if (listening) "stop" else "voice")
+        listenAction?.contentDescription = if (listening) "Stop dictation" else "Dictate on this device"
+    }
+
+    private fun refreshSendControl() {
+        val imageRunning = imageStore.running()
+        val stop = imageRunning || speechActive
+        val speech = chat.model.startsWith("speech:")
+        (sendControl?.getChildAt(0) as? Symbol)?.showKind(if (stop) "stop" else if (speech) "play" else "send")
+        sendControl?.apply {
+            contentDescription = if (stop) "Stop ${if (imageRunning) "image generation" else "speech"}" else if (speech) "Speak text" else "Send message"
+            isEnabled = stop || (!busy && chat.model.isNotBlank()); alpha = if (isEnabled) 1f else .45f
+        }
     }
 
     private fun showComposerTools(isImage: Boolean) {
@@ -446,9 +668,14 @@ class MainActivity : Activity() {
             })
         }
         if (isImage) actions.add("Image options" to { imageOptions() })
-        else actions.add("CPU / GPU processing" to { showProcessorPicker() })
-        actions.add("Stop speech playback" to { tts?.stop() })
-        actions.add("App updates" to { showUpdateSettings() })
+        else if (chat.model.startsWith("text:")) actions.add("CPU / GPU processing" to { showProcessorPicker() })
+        if (chat.model.startsWith("speech:")) {
+            actions.add("Change voice" to { showModelPicker() })
+        } else {
+            actions.add("Read-aloud voice" to { showSpeechOptions() })
+            actions.add("Read message aloud" to { speak(editor?.text?.toString().orEmpty()) })
+        }
+        actions.add("Stop speech" to { stopSpeech() })
         AlertDialog.Builder(this).setTitle("Message tools").setItems(actions.map { it.first }.toTypedArray()) { _, index -> actions[index].second() }
             .setNegativeButton("Close", null).show()
     }
@@ -532,6 +759,7 @@ class MainActivity : Activity() {
     }
 
     private fun sendImagePrompt() {
+        if (speechActive) { toast("Stop speech before starting image generation."); return }
         val prompt = editor?.text?.toString()?.trim().orEmpty()
         if (prompt.isEmpty()) { toast("Write a prompt first."); return }
         val family = chat.model.removePrefix("image:")
@@ -568,7 +796,11 @@ class MainActivity : Activity() {
             reloadChat()
             if (activated) { autoSelectModel(); toast("Model ready. Select it at the top of Chat.") }
             render()
-        } else imagePane?.refreshJob()
+        }
+        imagePane?.refreshJob()
+        libraryStatus?.apply {
+            text = modelSetupSummary(); visibility = if (text.isBlank()) View.GONE else View.VISIBLE
+        }
     }
 
     private fun input(hintText: String, value: String) = EditText(this).apply {
@@ -595,13 +827,14 @@ class MainActivity : Activity() {
             val content = pending.progress.text.ifEmpty { pending.progress.stage }
             streamingTextView?.let { if (it.text.toString() != content) it.text = content }
             streamingTimingView?.text = status
-            if (wasAtBottom) scroll?.post {
+            if (wasAtBottom) scroll.post {
                 if (screen == "Chat" && chat.id == pending.chatId && body.parent === scroll) scroll.smoothScrollTo(0, body.height)
             }
         }
     }
 
     private fun generate() {
+        if (speechActive) { toast("Stop speech before starting text generation."); return }
         if (busy) return
         if (imageStore.running()) { toast("Wait for image generation to finish, or cancel it first."); return }
         val prompt = editor?.text?.toString()?.trim().orEmpty()
@@ -654,29 +887,146 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun modelSetup() {
-        imagePane = ModelSetupView(this, imageStore, busy,
-            importAsset = { role, family ->
-                pendingModelRole = role.name; pendingImageFamily = family
-                startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply { type = "*/*"; addCategory(Intent.CATEGORY_OPENABLE) }, 200)
-            }, remove = { removeImageAsset(it) }, openLink = { openUrl(it) },
-            setupAction = { action, url -> startModelSetup(action, url) })
-        imagePane?.let { add(body, it, top = 16) }
+    private fun setupView(): ModelSetupView = ModelSetupView(this, imageStore, busy,
+        importAsset = { role, family ->
+            modelSheet?.dismiss()
+            pendingModelRole = role.name; pendingImageFamily = family
+            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply { type = "*/*"; addCategory(Intent.CATEGORY_OPENABLE) }, 200)
+        }, remove = { removeImageAsset(it) }, openLink = { openUrl(it) },
+        setupAction = { action, url -> startModelSetup(action, url) })
+
+    private fun showAddModel() {
+        showPanel("Add a model") { panel, dialog ->
+            val setup = setupView()
+            imagePane = setup; add(panel, setup)
+            add(panel, label("Supported voice models"), top = 28)
+            SpeechModelCatalog.models.forEach { spec ->
+                add(panel, pickerRow(spec.title, "${spec.voices.joinToString { it.name }} · ${size(spec.downloadBytes)}", speechModels.installed(spec)) {
+                    dialog.dismiss(); showSpeechModelDetails(spec)
+                }, top = 10)
+            }
+            add(panel, label("From your phone"), top = 28)
+            add(panel, pickerRow("Import model files", "Choose downloaded files") { dialog.dismiss(); chooseLocalModelFiles() }, top = 10)
+            add(panel, pickerRow("Connect a model folder", "Find models in a shared folder") { dialog.dismiss(); chooseModelFolder() }, top = 8)
+        }
+    }
+
+    private fun showSpeechModelDetails(spec: SpeechModelSpec) {
+        showPanel(spec.title) { panel, dialog ->
+            val installed = speechModels.installed(spec)
+            add(panel, text("Text to speech · ${spec.voices.joinToString { it.name }} · English", 14f, muted), top = 8)
+            add(panel, text("${size(spec.downloadBytes)} download · runs on this phone", 13f, muted), top = 8)
+            add(panel, text(spec.licenseSummary, 13f, ink), top = 20)
+            add(panel, text(spec.credit + "  ↗", 13f, green).apply {
+                minHeight = dp(48); gravity = Gravity.CENTER_VERTICAL; isClickable = true; isFocusable = true
+                setOnClickListener { openUrl(spec.creditUrl) }
+            }, top = 8)
+            add(panel, button("Model & license  ↗", false) { openUrl(spec.modelUrl) }, top = 8)
+            add(panel, button(if (installed) "Use in Chat" else if (speechDownloading) "Downloading…" else if (speechHasPartial(spec)) "Resume download" else "Download model") {
+                dialog.dismiss()
+                if (installed) chooseSpeechVoice(spec) else downloadSpeechModel(spec)
+            }.apply { isEnabled = installed || !speechDownloading }, top = 20)
+            if (installed) add(panel, button("Remove model", false) { dialog.dismiss(); removeSpeechModel(spec) }, top = 8)
+            else add(panel, text("Downloads can use mobile data. Keep RunLocal open; interrupted downloads can be resumed.", 12f, muted), top = 12)
+        }
+    }
+
+    private fun removeSpeechModel(spec: SpeechModelSpec) {
+        if (speechDownloading) { toast("Pause the speech download before removing a model."); return }
+        AlertDialog.Builder(this).setTitle("Remove ${spec.title}?")
+            .setMessage("Free ${size(spec.downloadBytes)} by removing the app's copy. Chats and original files are kept.")
+            .setNegativeButton("Keep", null).setPositiveButton("Remove") { _, _ ->
+                stopSpeech()
+                runCatching { speechModels.remove(spec) }.onFailure { notice("Could not remove model", it.message.orEmpty()) }
+                saveDraft(); render()
+            }.show()
+    }
+
+    private fun manageLibraryEntry(entry: LibraryEntry) {
+        val actions = if (entry.kind == LibraryKind.VOICE) arrayOf("Model & license", "Use in Chat", "Remove model")
+            else arrayOf("Model details", "Use in Chat", if (entry.kind == LibraryKind.IMAGE) "Remove model files…" else "Remove model")
+        AlertDialog.Builder(this).setTitle(entry.title).setItems(actions) { _, index ->
+            when (index) {
+                0 -> when (entry.kind) {
+                    LibraryKind.VOICE -> showSpeechModelDetails(SpeechModelCatalog.find(entry.key.removePrefix("speech:")))
+                    LibraryKind.TEXT -> notice(entry.title, "Text chat · ${size(entry.bytes)}\nStored privately in RunLocal. Choose CPU or GPU from Chat's message tools.")
+                    LibraryKind.IMAGE -> showImageFiles(entry.key.removePrefix("image:"))
+                }
+                1 -> useLibraryEntry(entry)
+                2 -> when (entry.kind) {
+                    LibraryKind.TEXT -> store.models().firstOrNull { "text:${it.id}" == entry.key }?.let { deleteModel(it) }
+                    LibraryKind.VOICE -> removeSpeechModel(SpeechModelCatalog.find(entry.key.removePrefix("speech:")))
+                    LibraryKind.IMAGE -> showImageFiles(entry.key.removePrefix("image:"))
+                }
+            }
+        }.setNegativeButton("Close", null).show()
+    }
+
+    private fun showImageFiles(profile: String? = null) {
+        val files = if (profile == null) imageStore.assets() else (imageStore.roles(profile) + ModelRole.LORA)
+            .mapNotNull { imageStore.assigned(it, profile) }.distinctBy { it.id }
+        if (files.isEmpty()) { toast("No image files to manage."); return }
+        AlertDialog.Builder(this).setTitle("Image model files")
+            .setItems(files.map { "${it.name} · ${size(it.file.length())}\n${it.role.label} · tap to remove" }.toTypedArray()) { _, index -> removeImageAsset(files[index]) }
+            .setNeutralButton("Configure components") { _, _ -> showAddModel() }
+            .setNegativeButton("Close", null).show()
+    }
+
+    private fun showPhoneLibrary() {
+        showPanel("Files & folders") { panel, _ ->
+            add(panel, PhoneModelLibraryView(this, store, imageStore, phoneLibrary, busy,
+                chooseFolder = { modelSheet?.dismiss(); chooseModelFolder() },
+                chooseFiles = { modelSheet?.dismiss(); chooseLocalModelFiles() }, refresh = { modelSheet?.dismiss(); scanPhoneModels() },
+                importFound = { model -> modelSheet?.dismiss(); importPhoneModel(model) },
+                forget = { source -> modelSheet?.dismiss(); disconnectPhoneLocation(source) }))
+        }
+    }
+
+    private fun modelSetupSummary(): String {
+        val setup = imageStore.setup()
+        return when {
+            speechDownloading -> speechStatus
+            speechStatus.startsWith("Speech download") -> speechStatus
+            SpeechModelCatalog.models.any { !speechModels.installed(it) && speechHasPartial(it) } -> "Voice download paused · tap to resume"
+            setup.optString("state") in listOf("resolving", "downloading", "verifying", "review", "paused", "error") ->
+                setup.optString("message").ifBlank { "Model setup · ${setup.optString("state")}" }
+            else -> ""
+        }
+    }
+
+    private fun speechHasPartial(spec: SpeechModelSpec) = spec.files.any {
+        speechModels.file(spec, it).isFile || File(speechModels.file(spec, it).path + ".part").isFile
     }
 
     private fun models() {
-        header()
-        add(body, text("Models", 28f, ink, true))
-        modelSetup()
-        add(body, PhoneModelLibraryView(this, store, imageStore, phoneLibrary, busy,
-            chooseFolder = { chooseModelFolder() }, chooseFiles = { chooseLocalModelFiles() }, refresh = { scanPhoneModels() },
-            useText = { model -> store.selectedId = model.id; mode = "Text"; bindSelectedModel(); navigate("Chat") },
-            removeText = { model -> deleteModel(model) },
-            useImage = { profile ->
-                runCatching { imageStore.selectLocalProfile(profile); mode = "Image"; bindSelectedModel(); navigate("Chat") }
-                    .onFailure { notice("Could not select model", it.message.orEmpty()) }
-            }, importFound = { model -> importPhoneModel(model) }, forget = { source -> disconnectPhoneLocation(source) },
-            openImages = { toast("Use Advanced model files above to assign components.") }), top = 12)
+        val heading = row()
+        heading.addView(text("Models", 30f, ink, true), LinearLayout.LayoutParams(0, -2, 1f))
+        heading.addView(button("＋  Add model") { showAddModel() }, LinearLayout.LayoutParams(-2, dp(48)))
+        add(body, heading)
+        add(body, text("Your on-device library", 14f, muted), top = 8)
+        val summary = modelSetupSummary()
+        libraryStatus = text(summary, 13f, green).apply {
+            setPadding(dp(14), dp(12), dp(14), dp(12)); minHeight = dp(48)
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+            visibility = if (summary.isBlank()) View.GONE else View.VISIBLE
+            clickable(this, pale, 16) { showAddModel() }
+        }
+        libraryStatus?.let { add(body, it, top = 16) }
+        if (speechDownloading) add(body, button("Pause voice download", false) {
+            speechDownloadCancelled.set(true); updateSpeechStatus("Pausing speech download…")
+        }, top = 8)
+        add(body, ModelLibraryView(this, libraryEntries(), chat.model, modelFilter,
+            filterChanged = { modelFilter = it; render() }, use = { useLibraryEntry(it) }, more = { manageLibraryEntry(it) },
+            addModel = { showAddModel() }), top = 20)
+        add(body, pickerRow("Files & folders", "Imports, saved locations and discovered models") { showPhoneLibrary() }, top = 24)
+        if (imageStore.assets().isNotEmpty()) add(body, pickerRow("Image components", "Manage bases, encoders and adapters") { showImageFiles() }, top = 8)
+        add(body, pickerRow("Phone speech", "Offline dictation & Android voices") {
+            AlertDialog.Builder(this).setTitle("Phone speech")
+                .setMessage("Dictation uses your phone's installed on-device recognizer and offline language pack. Android offline voices can read chat replies. Downloaded voice models appear in the library above.")
+                .setPositiveButton("Dictate in Chat") { _, _ -> navigate("Chat"); startListening() }
+                .setNeutralButton("Read-aloud voice") { _, _ -> showSpeechOptions() }
+                .setNegativeButton("Close", null).show()
+        }, top = 8)
         val now = System.currentTimeMillis()
         if (!busy && phoneLibrary.index().sources.any { phoneLibrary.hasAccess(it.source) } && now - lastPhoneAutoScan > 30000) {
             lastPhoneAutoScan = now
@@ -883,7 +1233,7 @@ class MainActivity : Activity() {
     }
     private fun removeImageAsset(asset: ImageAsset) {
         if (busy || imageStore.running() || imageStore.setupRunning()) return
-        AlertDialog.Builder(this).setTitle("Remove ${asset.name}?").setMessage("Only the app's copy will be deleted. Your original download is kept.")
+        AlertDialog.Builder(this).setTitle("Remove ${asset.name}?").setMessage("Only the app's copy will be deleted. Your original download and chats are kept. Any image model using this file will need it added again.")
             .setNegativeButton("Keep", null).setPositiveButton("Remove") { _, _ ->
                 runCatching { imageStore.delete(asset) }.onFailure { notice("Could not remove file", it.message.orEmpty()) }
                 saveDraft(); render()
@@ -903,6 +1253,9 @@ class MainActivity : Activity() {
         .any { it.service.className == ImageGenerationService::class.java.name }
 
     private fun startModelSetup(action: String, url: String?) {
+        if (action == ModelDownloadService.RESOLVE) {
+            SpeechModelCatalog.forLink(url.orEmpty())?.let { modelSheet?.dismiss(); downloadSpeechModel(it); return }
+        }
         if (busy || imageStore.running()) { toast("Wait for the current operation to finish."); return }
         if (action != ModelDownloadService.PAUSE && imageStore.setupRunning()) return
         if (action == ModelDownloadService.RESOLVE) {
@@ -946,8 +1299,88 @@ class MainActivity : Activity() {
     private fun notice(title: String, message: String) { if (!destroyed) AlertDialog.Builder(this).setTitle(title).setMessage(message).setPositiveButton("Got it", null).show() }
     private fun openUrl(url: String) { runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }.onFailure { toast("No browser is available on this device.") } }
 
+    private fun selectedSpeechModel(): SpeechModelSpec? = SpeechModelCatalog.models.firstOrNull { it.id == speechModels.selectedId }
+
+    private fun updateSpeechStatus(message: String) {
+        speechStatus = message
+        speechStatusView?.text = message
+        speechStatusView?.visibility = if (showSpeechStatus()) View.VISIBLE else View.GONE
+        if (speechDownloading) libraryStatus?.text = message
+    }
+
+    private fun showSpeechStatus() = speechActive || (speechOwner == chat.id && speechState in listOf("complete", "error"))
+
+    private fun stopSpeech() {
+        ++speechLaunch
+        tts?.stop(); speechClient.stop(); speechActive = false; speechState = "stopped"
+        saveDraft()
+        val changed = speechTurn.event("stopped", "Speech stopped before playback. Send the text again to retry.")
+        if (changed) { reloadChat(); render() }
+        if (!speechDownloading) updateSpeechStatus("Speech stopped.")
+        refreshSendControl()
+    }
+
+    private fun showSpeechOptions() {
+        val choices = SpeechModelCatalog.models.filter { speechModels.installed(it) }
+            .flatMap { spec -> spec.voices.map { spec to it } }
+        val titles = listOf("Android installed offline voices") + choices.map { (spec, voice) -> "${spec.title} · ${voice.name} (${voice.language})" } + "Manage speech models…"
+        val selected = choices.indexOfFirst { (spec, voice) -> spec.id == speechModels.selectedId && speechModels.voice(spec) == voice.id }
+        AlertDialog.Builder(this).setTitle("Read aloud voice")
+            .setSingleChoiceItems(titles.toTypedArray(), if (speechModels.selectedId == "android") 0 else selected + 1) { dialog, index ->
+                dialog.dismiss()
+                if (index == titles.lastIndex) { navigate("Models"); return@setSingleChoiceItems }
+                stopSpeech()
+                if (index == 0) speechModels.selectedId = "android"
+                else choices[index - 1].let { (spec, voice) -> speechModels.selectedId = spec.id; speechModels.selectVoice(spec, voice.id) }
+                updateSpeechStatus("Read-aloud voice selected.")
+                saveDraft(); render()
+            }.setNegativeButton("Close", null).show()
+    }
+
+    private fun downloadSpeechModel(spec: SpeechModelSpec) {
+        if (speechDownloading) { toast("A speech model is already downloading."); return }
+        if (speechModels.installed(spec)) { chooseSpeechVoice(spec); return }
+        stopSpeech(); speechDownloading = true; speechDownloadCancelled.set(false)
+        updateSpeechStatus("Downloading ${spec.title}… Keep RunLocal open.")
+        saveDraft(); render()
+        speechSetupWorker.execute {
+            var lastUpdate = 0L
+            val result = runCatching {
+                speechModels.install(spec, cancelled = { speechDownloadCancelled.get() || Thread.currentThread().isInterrupted }) { bytes, total, verifying ->
+                    val now = SystemClock.elapsedRealtime()
+                    if (now - lastUpdate > 250 || bytes == total) {
+                        lastUpdate = now
+                        runOnUiThread {
+                            if (!destroyed) updateSpeechStatus("${if (verifying) "Verifying" else "Downloading"} ${spec.title} · ${size(bytes)} of ${size(total)}")
+                        }
+                    }
+                }
+            }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                speechDownloading = false
+                result.onSuccess {
+                    speechModels.selectedId = spec.id
+                    updateSpeechStatus("${spec.title} is ready. Choose it in Chat to speak text.")
+                }.onFailure { error ->
+                    val paused = error is java.util.concurrent.CancellationException || speechDownloadCancelled.get()
+                    updateSpeechStatus(if (paused) "Speech download paused. Tap Download to resume." else "Speech download failed: ${error.message}")
+                    if (!paused) notice("Could not download speech model", error.message.orEmpty())
+                }
+                saveDraft(); render()
+            }
+        }
+    }
+
     private fun speak(value: String) {
         if (value.isBlank()) { toast("Add some text first."); return }
+        selectedSpeechModel()?.let { spec ->
+            if (!canSpeak(spec, value)) return
+            stopSpeech(); launchSpeech(spec, speechModels.voice(spec), value)
+            return
+        }
+        if (speechModels.selectedId != "android") { notice("Speech model unavailable", "Choose a supported voice in Message tools → Read aloud voice."); return }
+        stopSpeech()
         if (!speechReady) { toast("Speech is still starting, or no speech engine is installed."); return }
         val voice = tts?.voices?.filter { !it.isNetworkConnectionRequired && it.locale.language == Locale.getDefault().language }
             ?.firstOrNull() ?: tts?.voices?.firstOrNull { !it.isNetworkConnectionRequired && it.locale.language == "en" }
@@ -958,21 +1391,75 @@ class MainActivity : Activity() {
         if (tts?.speak(value, TextToSpeech.QUEUE_FLUSH, null, "pocket") == TextToSpeech.ERROR) toast("The offline voice could not play this text.")
     }
 
+    private fun canSpeak(spec: SpeechModelSpec, value: String): Boolean {
+        if (busy || imageStore.running()) { toast("Wait for model generation to finish before starting speech."); return false }
+        if (!speechModels.installed(spec)) {
+            notice("Speech model needed", "Add ${spec.title} in Models, or choose another model. This chat keeps its original voice."); return false
+        }
+        if (value.isBlank() || value.length > SpeechService.MAX_TEXT) {
+            notice("A shorter reading", "Enter between 1 and ${SpeechService.MAX_TEXT} characters to speak."); return false
+        }
+        return true
+    }
+
+    private fun sendSpeechPrompt() {
+        val selection = speechChatSelection(chat.model) ?: run {
+            notice("Voice unavailable", "Choose an installed voice model at the top of Chat."); return
+        }
+        val prompt = editor?.text?.toString()?.trim().orEmpty()
+        if (!canSpeak(selection.first, prompt)) return
+        stopSpeech()
+        (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(editor?.windowToken, 0)
+        val replyId = appendTurn(prompt)
+        speechTurn.begin(chat.id, replyId, prompt)
+        launchSpeech(selection.first, selection.second.id, prompt)
+        render()
+    }
+
+    private fun playSpeechReading(value: String) {
+        val selection = speechChatSelection(chat.model) ?: run {
+            notice("Voice unavailable", "This chat's voice model is no longer supported."); return
+        }
+        if (!canSpeak(selection.first, value)) return
+        stopSpeech(); launchSpeech(selection.first, selection.second.id, value)
+    }
+
+    private fun launchSpeech(spec: SpeechModelSpec, voice: String, value: String) {
+        val ticket = ++speechLaunch
+        speechOwner = chat.id; speechState = "generating"
+        speechActive = true; updateSpeechStatus("Preparing ${spec.title}…"); refreshSendControl()
+        // A model selected in Chat may still own native text memory. Release it on
+        // its serial worker before opening the voice runtime, with cancellation fencing.
+        worker.execute {
+            val release = runCatching { engine.close() }
+            runOnUiThread {
+                if (destroyed || ticket != speechLaunch) return@runOnUiThread
+                release.onSuccess { speechClient.speak(spec, voice, value) }.onFailure { error ->
+                    speechActive = false
+                    val message = "Could not release the text model: ${error.message}"
+                    speechState = "error"; updateSpeechStatus(message)
+                    saveDraft(); speechTurn.event("error", message); reloadChat(); render()
+                    notice("Could not start speech", message)
+                }
+            }
+        }
+    }
+
     private fun startListening() {
         if (!SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) { notice("On-device speech isn’t available", "Your phone has no available on-device speech recognizer. Install an offline recognition service or language pack. This app does not fall back to online recognition."); return }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) { requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 101); return }
         val targetChat = chat.id
-        tts?.stop(); recognizer?.destroy()
+        stopSpeech(); recognizer?.destroy()
         runCatching { recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this).apply {
             setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) { listening = true; listenAction?.text = "Stop"; toast("Listening on your device…") }
+                override fun onReadyForSpeech(params: Bundle?) { listening = true; refreshListenControl(); toast("Listening on your device…") }
                 override fun onBeginningOfSpeech() {}
                 override fun onRmsChanged(rmsdB: Float) {}
                 override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onEndOfSpeech() { listening = false; listenAction?.text = "Mic" }
+                override fun onEndOfSpeech() { listening = false; refreshListenControl() }
                 override fun onError(error: Int) {
                     listening = false
-                    listenAction?.text = "Mic"
+                    refreshListenControl()
                     notice("Could not transcribe", when (error) {
                         SpeechRecognizer.ERROR_NO_MATCH -> "No speech was recognized. Try speaking a little closer to the microphone."
                         SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech was detected. Try again when you’re ready."
@@ -982,7 +1469,7 @@ class MainActivity : Activity() {
                 }
                 override fun onResults(results: Bundle?) {
                     listening = false
-                    listenAction?.text = "Mic"
+                    refreshListenControl()
                     val value = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
                     if (value.isNotBlank()) {
                         if (chat.id == targetChat) {
@@ -1001,7 +1488,7 @@ class MainActivity : Activity() {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             })
-        } }.onFailure { listening = false; listenAction?.text = "Mic"; notice("Could not start microphone", it.message ?: "The on-device speech service is unavailable.") }
+        } }.onFailure { listening = false; refreshListenControl(); notice("Could not start microphone", it.message ?: "The on-device speech service is unavailable.") }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -1012,20 +1499,23 @@ class MainActivity : Activity() {
     override fun onSaveInstanceState(outState: Bundle) {
         saveDraft(); outState.putString("screen", screen); outState.putString("mode", mode)
         outState.putString("draft", draft)
+        outState.putString("modelFilter", modelFilter)
         outState.putString("pendingModelRole", pendingModelRole); outState.putString("pendingImageFamily", pendingImageFamily); outState.putString("pendingExport", pendingExport)
         super.onSaveInstanceState(outState)
     }
     override fun onResume() { super.onResume(); if (pendingGeneration != null) { uiHandler.removeCallbacks(generationHeartbeat); uiHandler.post(generationHeartbeat) }; checkAppUpdates(); uiHandler.removeCallbacks(imageHealthCheck); uiHandler.post(imageHealthCheck) }
-    override fun onStop() { uiHandler.removeCallbacks(generationHeartbeat); saveDraft(); uiHandler.removeCallbacks(imageHealthCheck); super.onStop(); recognizer?.cancel(); listening = false; tts?.stop() }
+    override fun onStop() { uiHandler.removeCallbacks(generationHeartbeat); saveDraft(); uiHandler.removeCallbacks(imageHealthCheck); super.onStop(); recognizer?.cancel(); listening = false; stopSpeech(); speechClient.close(); speechDownloadCancelled.set(true) }
     override fun onDestroy() {
         uiHandler.removeCallbacks(generationHeartbeat)
-        destroyed = true; updateWorker.shutdownNow(); recognizer?.destroy(); tts?.shutdown()
+        destroyed = true; modelSheet?.dismiss(); updateWorker.shutdownNow(); recognizer?.destroy(); tts?.shutdown()
+        speechDownloadCancelled.set(true); speechSetupWorker.shutdownNow(); speechClient.close()
         uiHandler.removeCallbacks(imageHealthCheck); unregisterReceiver(imageUpdates)
         worker.execute { engine.close() }; worker.shutdown()
         super.onDestroy()
     }
 
-    private inner class Symbol(private val kind: String, private val tint: Int) : View(this@MainActivity) {
+    private inner class Symbol(private var kind: String, private val tint: Int) : View(this@MainActivity) {
+        fun showKind(value: String) { kind = value; invalidate() }
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = tint; style = Paint.Style.STROKE; strokeWidth = 1.6f; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
         override fun onDraw(c: Canvas) {
             c.save(); c.scale(width / 24f, height / 24f)
@@ -1038,6 +1528,14 @@ class MainActivity : Activity() {
                 "video" -> { c.drawRoundRect(2f, 5f, 17f, 19f, 3f, 3f, paint); path(17f, 9f, 23f, 6f, 23f, 18f, 17f, 15f) }
                 "models" -> { c.drawRoundRect(3f, 4f, 21f, 10f, 2f, 2f, paint); c.drawRoundRect(3f, 14f, 21f, 20f, 2f, 2f, paint); c.drawCircle(7f, 7f, .5f, paint); c.drawCircle(7f, 17f, .5f, paint); path(12f, 7f, 17f, 7f); path(12f, 17f, 17f, 17f) }
                 "history" -> { c.drawCircle(12f, 12f, 9f, paint); path(12f, 6f, 12f, 12f, 16f, 14f) }
+                "plus" -> { path(12f, 5f, 12f, 19f); path(5f, 12f, 19f, 12f) }
+                "close" -> { path(6f, 6f, 18f, 18f); path(18f, 6f, 6f, 18f) }
+                "check" -> path(5f, 12f, 10f, 17f, 19f, 7f)
+                "chevron" -> path(9f, 5f, 16f, 12f, 9f, 19f)
+                "send" -> { path(12f, 20f, 12f, 4f); path(5f, 11f, 12f, 4f, 19f, 11f) }
+                "play" -> path(8f, 4f, 20f, 12f, 8f, 20f, 8f, 4f)
+                "stop" -> c.drawRoundRect(5f, 5f, 19f, 19f, 2f, 2f, paint)
+                "speaker" -> { path(3f, 9f, 7f, 9f, 12f, 4f, 12f, 20f, 7f, 15f, 3f, 15f, 3f, 9f); c.drawArc(10f, 5f, 22f, 19f, -60f, 120f, false, paint) }
                 "settings" -> { path(3f, 6f, 21f, 6f); path(3f, 12f, 21f, 12f); path(3f, 18f, 21f, 18f); c.drawCircle(8f, 6f, 2f, paint); c.drawCircle(16f, 12f, 2f, paint); c.drawCircle(9f, 18f, 2f, paint) }
                 else -> { path(12f, 2f, 15f, 9f, 22f, 12f, 15f, 15f, 12f, 22f, 9f, 15f, 2f, 12f, 9f, 9f, 12f, 2f) }
             }

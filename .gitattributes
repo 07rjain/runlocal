@@ -1,0 +1,3 @@
+# Preserve the vendored lexicon's empty final TSV columns and upstream file ending.
+app/src/main/python/underdog_woof/respell.tsv whitespace=-blank-at-eol
+app/src/main/python/underdog_woof/runtime.py whitespace=-blank-at-eof

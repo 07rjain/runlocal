@@ -57,15 +57,15 @@ class ModelSetupView(
     }
     private fun size(bytes: Long) = if (bytes >= 1024L * 1024 * 1024) String.format(Locale.US, "%.1f GB", bytes / (1024.0 * 1024 * 1024)) else "${bytes / (1024 * 1024)} MB"
     private fun locked() = importing || store.running() || store.setupRunning()
-    init { orientation = VERTICAL; setPadding(dp(18), dp(18), dp(18), dp(18)); background = bg(Color.WHITE, 22); build() }
+    init { orientation = VERTICAL; setPadding(0, dp(8), 0, 0); build() }
 
     private fun build() {
         runCatching { store.activateReadySetup() }
         removeAllViews()
         val moss = store.family == "moss"
         val advanced = prefs.getBoolean("advanced-image-settings", false)
-        add(label("Add from Hugging Face", 20f, bold = true), 0)
-        add(label("Paste a model or LoRA link. Add model downloads matching files automatically, including over mobile data.", 12f, muted), 6)
+        add(label("From Hugging Face", 17f, bold = true), 0)
+        add(label("Text, image or supported voice model links. Downloads can use mobile data.", 12f, muted), 6)
         val current = store.activeModel.ifEmpty { store.assigned(if (moss) ModelRole.DIFFUSION else ModelRole.CHECKPOINT)?.name.orEmpty() }
         if (current.isNotEmpty()) add(label("Model · ${current.substringAfter('/')}", 13f, green, true), 18)
         val link = field("model-link", "Paste a Hugging Face model or LoRA link")
@@ -100,13 +100,13 @@ class ModelSetupView(
         } else if (setup.optString("state") in listOf("paused", "error") && plan == null) {
             add(action("Try this link again") { if (!locked()) setupAction(ModelDownloadService.RESOLVE, link.text.toString().trim()) })
         }
-        if (current.isEmpty() || setup.optString("state") in listOf("error", "review", "paused")) add(action("Try a lighter starter model") {
+        if (current.isEmpty() || setup.optString("state") in listOf("error", "review", "paused")) add(action("Add SD 1.5 starter model") {
             if (!locked()) {
                 prefs.edit().putString("model-link", STARTER).apply()
                 setupAction(ModelDownloadService.RESOLVE, STARTER)
             }
         })
-        add(action(if (advanced) "Advanced  ▴" else "Advanced  ▾") {
+        add(action(if (advanced) "Advanced image setup  ▴" else "Advanced image setup  ▾") {
             prefs.edit().putBoolean("advanced-image-settings", !advanced).apply(); build()
         }, 24)
         if (advanced) {

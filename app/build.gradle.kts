@@ -1,4 +1,4 @@
-plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
+plugins { id("com.android.application"); id("org.jetbrains.kotlin.android"); id("com.chaquo.python") }
 
 // Use our own ABI selector. Android Studio's injected ABI property marks APKs testOnly.
 val runlocalAbis = providers.gradleProperty("runlocal.abis").orElse("arm64-v8a,x86_64")
@@ -18,12 +18,21 @@ android {
         applicationId = "app.pocket.local"
         minSdk = 31
         targetSdk = 36
-        versionCode = 10
-        versionName = "1.0.0-rc4"
+        versionCode = 13
+        versionName = "1.0.0-rc7"
+        ndk { abiFilters += runlocalAbis }
         buildConfigField("String", "RELEASE_REPOSITORY", "\"$releaseRepository\"")
         externalNativeBuild { cmake { arguments += listOf("-DANDROID_STL=c++_shared"); targets += "pocket_diffusion" } }
     }
-    splits { abi { isEnable = true; reset(); include(*runlocalAbis.toTypedArray()); isUniversalApk = false } }
+    // Chaquopy requires ndk.abiFilters, which AGP forbids alongside ABI splits.
+    // Build a standalone APK for the requested ABI set and retain the phone output filename.
+    applicationVariants.all {
+        val variantName = name
+        outputs.all {
+            (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
+                if (runlocalAbis.size == 1) "app-${runlocalAbis.single()}-$variantName.apk" else "app-$variantName.apk"
+        }
+    }
     ndkVersion = "28.2.13676358"
     externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt"); version = "3.22.1" } }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
@@ -51,6 +60,15 @@ android {
     } }
 }
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
+
+// Python 3.13 and these Android NumPy wheels support 16 KB memory pages.
+chaquopy {
+    defaultConfig {
+        version = "3.13"
+        buildPython(providers.gradleProperty("runlocal.buildPython").orElse("python3.13").get())
+        pip { install("numpy==1.26.2") }
+    }
+}
 
 dependencies {
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.1")

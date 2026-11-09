@@ -1,14 +1,14 @@
 # Version 1 readiness
 
-The current deliverable is **1.0.0-rc4**, a development candidate for review. The selected public repository is https://github.com/07rjain/runlocal; source is published there, while an app release remains pending.
+The current deliverable is **1.0.0-rc7**, a development candidate for review. The selected public repository is https://github.com/07rjain/runlocal; rc4 was published as an experimental prerelease, rc5 fixes a missing permission in startup update scheduling, rc6 adds extensible offline speech with the first Woof adapter, and rc7 unifies model management and adds voice conversations in Chat. Physical-device acceptance remains pending.
 
 ## Implemented for this candidate
 
-- [x] Exactly Chat and Models in bottom navigation.
+- [x] Exactly Chat and Models in bottom navigation, with a unified installed-model library and shared text/voice/image picker.
 - [x] Model selector, history drawer, new/switch/delete conversations.
 - [x] Continuous text chat, persisted drafts/history, migration of previous chat history.
 - [x] Text/image replies associated with their originating conversation.
-- [x] Image output and export within Chat; setup only in Models.
+- [x] Image output/export and voice synthesis/replay within Chat; model setup/management only in Models.
 - [x] Automatic supported Hugging Face text/image setup from one link, with pause/resume and integrity/storage/RAM checks.
 - [x] Existing app models, automatic saved-folder scans, persisted-grant adoption, automatic compatible-model choice, and imported-copy reuse.
 - [x] Clear limitations for private Cactus storage and unsupported formats.
@@ -16,6 +16,8 @@ The current deliverable is **1.0.0-rc4**, a development candidate for review. Th
 - [x] LiteRT-LM 0.18.1 API/compiler upgrade and per-model CPU/GPU selection; separate native engine ownership for each chat/backend.
 
 - [x] Changelog, agent guide, signed-release/draft workflow, release metadata and update checks; consolidated composer and null-assertion cleanup.
+
+- [x] Extensible speech model setup/selection/playback and the first Woof adapter, with required license credit; Android inference still needs device acceptance.
 
 ## Physical-device acceptance before declaring v1 stable
 
@@ -26,6 +28,9 @@ The current deliverable is **1.0.0-rc4**, a development candidate for review. Th
 - [ ] Add a supported public text model link, pause/restart/resume, verify reuse, and run it in airplane mode. Reject unsupported/gated/device-specific links clearly.
 - [ ] With a small SD 1.x checkpoint, generate/export an image in Chat and run image-to-image. Switch chats during generation and verify routing, then cancel/restart a job.
 - [ ] Verify model file removal fails clearly in an older chat; no silent LoRA/base substitutions.
+- [ ] Validate the new library/filter/add/menu flows on the phone, update from rc6 without uninstalling, and confirm existing models/history survive.
+- [ ] Select Woof Juno/Mira in Chat, send text, replay it, switch chats during synthesis and stop/background before playback; verify the correct chat/voice survives restart.
+- [ ] Download Woof in Models; test Juno and Mira in airplane mode, selection after restart, Read aloud on replies/drafts, cancellation/backgrounding, failed-download resume, removal and memory/process-death behavior. Record measured speech load/generation durations.
 - [ ] Test offline microphone/read-aloud, denied permissions, keyboard/rotation, long chats, and accessibility on the phone.
 - [ ] Verify live streaming, loading states, measured TTFT/token rates, saved metrics and chat switching during generation on CPU/GPU.
 - [ ] Verify the single composer on a phone, notification permission/disable behavior, stable release detection and signed APK update continuity.
@@ -42,4 +47,4 @@ The current deliverable is **1.0.0-rc4**, a development candidate for review. Th
 - [ ] Configure signing and review APK release contents before publication.
 - [ ] Record physical-device acceptance results and resolve blockers, then promote the candidate to a stable v1 version/tag.
 
-Video generation, custom speech-model import, GGUF text, Cactus execution, authenticated downloads, and unrestricted arbitrary model conversion remain future work. They are not silently included in v1 claims.
+Video generation, arbitrary speech-model import, GGUF text, Cactus execution, authenticated downloads, and unrestricted arbitrary model conversion remain future work. They are not silently included in v1 claims.

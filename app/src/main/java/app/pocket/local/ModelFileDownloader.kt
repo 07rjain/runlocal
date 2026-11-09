@@ -6,9 +6,17 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 
+interface PinnedDownload {
+    val url: String
+    val size: Long
+    val digest: String
+    val hashType: String
+    fun validate()
+}
+
 /** Byte-range resume and publisher-provided hashes; partially downloaded weights are never selected. */
 class ModelFileDownloader(private val open: (URL) -> HttpURLConnection = { it.openConnection() as HttpURLConnection }) {
-    fun download(file: RemoteModelFile, destination: File, checkSpace: (Long) -> Unit = {}, progress: (Long, Boolean) -> Unit = { _, _ -> }): File {
+    fun download(file: PinnedDownload, destination: File, checkSpace: (Long) -> Unit = {}, progress: (Long, Boolean) -> Unit = { _, _ -> }): File {
         file.validate()
         destination.parentFile?.mkdirs()
         if (destination.length() > file.size) destination.delete()

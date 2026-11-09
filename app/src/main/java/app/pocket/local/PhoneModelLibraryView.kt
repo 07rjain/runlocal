@@ -16,9 +16,8 @@ class PhoneModelLibraryView(
     private val activity: Activity, private val texts: ModelStore, private val images: ImageStore,
     private val library: PhoneModelLibrary, private val busy: Boolean,
     private val chooseFolder: () -> Unit, private val chooseFiles: () -> Unit, private val refresh: () -> Unit,
-    private val useText: (LocalModel) -> Unit, private val removeText: (LocalModel) -> Unit,
-    private val useImage: (String) -> Unit, private val importFound: (FoundPhoneModel) -> Unit,
-    private val forget: (PhoneModelSource) -> Unit, private val openImages: () -> Unit
+    private val importFound: (FoundPhoneModel) -> Unit,
+    private val forget: (PhoneModelSource) -> Unit
 ) : LinearLayout(activity) {
     private val green = 0xff335942.toInt()
     private val muted = 0xff6f7970.toInt()
@@ -45,29 +44,8 @@ class PhoneModelLibraryView(
     private fun size(bytes: Long) = if (bytes < 0) "Size unavailable" else if (bytes >= 1024L * 1024 * 1024) String.format(Locale.US, "%.1f GB", bytes / (1024.0 * 1024 * 1024)) else "${bytes / (1024 * 1024)} MB"
     init {
         orientation = VERTICAL
-        put(this, label("On this phone", 20f, bold = true), 20)
         val textModels = texts.models()
-        textModels.forEach { model ->
-            val box = card(model.name, "${size(model.size)} · Local text model${if (texts.selectedId == model.id) " · selected" else ""}")
-            put(box, button("Use text model") { useText(model) })
-            put(box, button("Remove app copy") { removeText(model) }, 7)
-        }
-        val profiles = images.configuredProfiles()
-        profiles.forEach { profile ->
-            val files = images.roles(profile).mapNotNull { images.assigned(it, profile) } + listOfNotNull(images.assigned(ModelRole.LORA, profile))
-            val box = card(images.profileLabel(profile).substringAfter('/'), "${size(files.sumOf { it.file.length() })} · Configured image model · ${files.size} files")
-            put(box, button("Use image model") { useImage(profile) })
-        }
         val imageAssets = images.assets()
-        if (imageAssets.isNotEmpty()) {
-            val box = card("${imageAssets.size} image model files", "Downloaded and imported base files, encoders and adapters are already available in RunLocal.")
-            put(box, button("Show local image files") {
-                AlertDialog.Builder(activity).setTitle("Image files in RunLocal")
-                    .setItems(imageAssets.map { "${it.name}\n${it.role.label} · ${size(it.file.length())}" }.toTypedArray()) { _, _ -> openImages() }
-                    .setNegativeButton("Close", null).show()
-            })
-        }
-        if (textModels.isEmpty() && profiles.isEmpty() && imageAssets.isEmpty()) put(this, label("No compatible models added yet. Saved locations are checked automatically.", 13f, muted))
         put(this, button("Connect another model folder", chooseFolder), 18)
         put(this, button("Import model files", chooseFiles), 8)
         put(this, label("Connected folders are scanned automatically. Android requires a first grant for shared folders and hides other apps’ private downloads, including private Cactus models.", 12f, muted))
@@ -104,7 +82,7 @@ class PhoneModelLibraryView(
                         val explanation = when (model.kind) {
                             PhoneModelKind.CACTUS_BUNDLE, PhoneModelKind.CACTUS_FILE -> "This is a Cactus-native model. It is visible in your library, but RunLocal currently needs a Cactus-compatible runtime to execute it."
                             PhoneModelKind.CACTUS_ARCHIVE -> "This looks like a Cactus download archive. RunLocal can list it, but cannot directly run or extract this archive."
-                            PhoneModelKind.GGUF -> "GGUF is used by several model families. This build cannot run GGUF language models. Image GGUF files can be configured under Image → Advanced with their matching components."
+                            PhoneModelKind.GGUF -> "GGUF is used by several model families. This build cannot run GGUF language models. Image GGUF files can be configured under Models → Add model → Advanced image setup with their matching components."
                             else -> "This file is listed, but its runtime compatibility has not been established. Only supported formats can be imported and run."
                         }
                         AlertDialog.Builder(activity).setTitle(model.name).setMessage(if (access) explanation else "Access to this location is no longer available. Choose the folder or file again to reconnect it.").setPositiveButton("Got it", null).show()

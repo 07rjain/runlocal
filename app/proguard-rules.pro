@@ -16,3 +16,5 @@
 -keep enum app.pocket.local.ModelRole { *; }
 
 -keep class app.pocket.local.GenerationMetrics { *; }
+# Python calls this Java cancellation method through Chaquopy's reflection bridge.
+-keep class app.pocket.local.SpeechCancellation { public *; }

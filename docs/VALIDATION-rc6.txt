@@ -1,0 +1,84 @@
+RunLocal 1.0.0-rc6 · versionCode 12 · standalone ARM64 · Android 12+
+
+Scope
+-----
+General speech model catalogue, shared setup/selection/testing/playback and
+runtime-adapter interface. The first supported downloaded family is Underdog
+Woof, with English Juno and Mira voices. Other model families need a compatible
+adapter and reviewed recipe; arbitrary voice weights are not executable.
+
+The UI retains exactly Chat and Models. Models contains speech downloads,
+voice tests and removal. Composer tools choose a voice, read draft text or stop
+speech; completed text replies use the selected voice. Android offline voices
+and on-device recognition remain available. Woof inference runs serially in a
+separate :speech process with cancellation, audio focus and foreground-only
+playback. No cloud inference or prompt/audio upload was added.
+
+Model provenance and license
+----------------------------
+ConwayResearch/Underdog-Woof
+Revision: be702960539777fc3f698e54335276a8391b00f9
+File: woof_int8.npz · 40,595,426 bytes
+Publisher SHA-256:
+d895fbbe84b8f4f461e3e94ab48b1164353b1988ce8d365f5aa8263d0de1203e
+
+Reviewed Python/normalizer/lexicon code is bundled, with only documented
+cooperative cancellation modifications to runtime.py. Weights download
+separately; no Woof weights are in source or APK. NumPy includes two small
+upstream NPZ test fixtures; these are not model weights. Model downloads cannot
+supply executable Python. Runtime/model LICENSE and NOTICE are retained
+unchanged. Woof is separately licensed under the Underdog Non-Commercial License
+1.0, with visible "Voice by Underdog Woof" links. Commercial use needs separate
+permission. Chaquopy, CPython and NumPy notices are bundled; native dependency
+license metadata remains in the Python requirements assets.
+
+Validation completed
+--------------------
+- Final combined build with Java 21, Python 3.13, ARM64 and max-workers=2:
+  :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
+  :app:testReleaseUnitTest :app:assembleRelease :app:lintRelease
+  BUILD SUCCESSFUL. Minified release uses the existing local development signer.
+- Debug tests: 84 total, 79 passed, 5 optional integration checks skipped.
+- Release tests: 84 total, 79 passed, 5 optional integration checks skipped.
+- Script suite: 16 passed. Includes speech adapter cancellation/PCM/invalid-audio
+  contracts and rejection of 4 KB native libraries inside Python asset archives.
+- Website checker: passed. Workflow validation: actionlint 1.7.7 passed.
+- Real host inference through the NEW adapter: Juno and Mira generated finite
+  24 kHz mono PCM WAV output with socket/DNS calls blocked, using the pinned,
+  hash-verified weights. No subjective audio-quality assessment is asserted.
+- Cooperative cancellation was observed during real host model inference;
+  the cancellation hook reset afterward. This is not an Android lifecycle test.
+- Shared downloader tests cover pinned speech files, integrity failure, resume,
+  range validation and unsafe redirects. Speech downloads/removal use an
+  exclusive file lock to prevent overlapping Activity writers.
+- Final APK verified against rc5 for signing continuity, normal non-test-only
+  standalone ARM64 installation, app identity/version and 16 KB ZIP/ELF
+  alignment. 92 native libraries checked, including those extracted from
+  Chaquopy asset archives. Bundled runtime/license assets were inspected.
+- R8 mapping confirms SpeechCancellation and its public isCancelled method
+  remain callable by the Python bridge in the minified build.
+- Git diff whitespace check passed. No source commit or GitHub publication made.
+
+APK: dist/runlocal-1.0.0-rc6-arm64.apk
+Size: 96,604,040 bytes
+SHA-256: 808e5fbb0849a087e8627a459b062b11744cbcb402ce247b03d423b842e01203
+Signing certificate SHA-256:
+4dc9269b18a7432cd749fe1a5bf73fb62cdcb126f501b3b84bdf598c75829e9f
+
+Limits and phone acceptance
+---------------------------
+The device tool could not boot Pocket_API_35. Its suggested emulator command was
+tried once and failed with: "x86_64 emulation currently requires hardware
+acceleration" / "KVM requires a CPU that supports vmx or svm". No working Android
+emulator or physical phone was available. Startup/UI, NumPy/Chaquopy inference
+on Android, audio playback/focus, background cancellation, download resume,
+low-memory/process-death behavior and thermal/performance remain UNVERIFIED on
+Android. Host timings are not phone benchmarks. Text/image inference was not
+rerun with multi-GB models. This candidate is experimental, not stable v1.
+
+Phone steps: docs/SPEECH-MODELS.md. Install over the existing app, download Woof
+in Models, test both voices, repeat in airplane mode, then test reply/draft
+reading, cancellation, restart selection and model removal. Record the phone
+model, Android version, measured speech timings and any exact error.
+
+The rc5 startup-permission investigation remains in docs/VALIDATION-rc5.txt.

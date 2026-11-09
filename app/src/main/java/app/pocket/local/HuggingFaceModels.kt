@@ -33,12 +33,12 @@ data class ModelLink(val repo: String, val revision: String = "main", val file: 
     }
 }
 
-data class RemoteModelFile(val repo: String, val revision: String, val path: String, val size: Long,
-                           val digest: String, val hashType: String, val role: ModelRole) {
+data class RemoteModelFile(val repo: String, val revision: String, val path: String, override val size: Long,
+                           override val digest: String, override val hashType: String, val role: ModelRole) : PinnedDownload {
     val name: String get() = path.substringAfterLast('/')
     val key: String get() = "${role.name}-$hashType-$digest"
-    val url: String get() = URI("https", "huggingface.co", "/$repo/resolve/$revision/$path", null).toASCIIString()
-    fun validate() {
+    override val url: String get() = URI("https", "huggingface.co", "/$repo/resolve/$revision/$path", null).toASCIIString()
+    override fun validate() {
         ModelLink.parse(repo)
         require(Regex("[0-9a-f]{40}").matches(revision)) { "The model revision could not be pinned." }
         ModelLink.checkPath(path)

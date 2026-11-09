@@ -7,6 +7,32 @@ Versions are ordered newest first. Earlier entries reconstruct the local develop
 ### Added
 - Static landing page in `website/` with a GitHub Pages deployment workflow and a markup/link checker. No app changes.
 
+## [1.0.0-rc7] - 2026-11-09
+
+### Changed
+- Keep exactly Chat and Models, with one installed-model library for text, voice and image models. Type filters, a single Add model panel and per-model menus replace the stacked setup/test screens. Saved-folder discovery and image component management open on demand.
+- Chat's model picker now includes installed voice models. Type and send text to speak with Juno or Mira; saved voice conversations retain the exact model/voice and offer replay. Dictation stays in the shared composer; text replies retain read-aloud controls.
+- Simplify chat headers, message actions and navigation; move processor options into message tools while retaining the explicit selected processor in the header. Keep one visible Woof credit link in the composer rather than repeating it on every reply.
+
+### Fixed
+- Release native text-model memory on its serial worker before downloaded speech starts. Fence delayed speech startup against cancellation; complete or fail voice replies only in their originating conversation.
+- Preserve chat scroll position and editing focus during same-chat refreshes. Old chat/model keys and downloaded files remain intact; voice conversations add a new model-key prefix without changing existing JSON fields.
+
+## [1.0.0-rc6] - 2026-11-08
+
+### Added
+- Extensible downloaded speech-model catalogue, pinned/hash-verified resumable setup, per-model voice selection, model removal and editable voice tests inside Models. Composer tools select a voice or read the draft aloud; replies use the chosen voice.
+- First speech runtime adapter: English Underdog Woof (Juno and Mira), using its pinned reference implementation with Chaquopy/Python 3.13 and NumPy in a separate serial speech process. Weights download separately. Android inference remains experimental pending phone acceptance.
+- Cooperative inference cancellation, foreground-only playback, audio focus, temporary-audio cleanup and measured model-load/generation/audio durations. Android offline voices and on-device dictation remain available.
+- Required Woof attribution/non-commercial license and native Python dependency notices. The Woof runtime is separately licensed; arbitrary speech models require additional compatible adapters.
+- APK alignment verification now covers native libraries extracted from Python asset archives as well as lib/. Builds use standalone ABI-filtered outputs compatible with Chaquopy, preserving the phone APK filename.
+
+## [1.0.0-rc5] - 2026-11-03
+
+### Fixed
+- Declare ACCESS_NETWORK_STATE for the optional network-constrained update job. Android 14+ otherwise throws an uncaught SecurityException from startup scheduling, before a model is loaded.
+- APK packaging now rejects builds missing that permission, with regression coverage for the rc4 permission set.
+
 ## [1.0.0-rc4] - 2026-11-03
 
 ### Added

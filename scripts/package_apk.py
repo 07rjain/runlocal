@@ -2,6 +2,7 @@
 """Verify a normally installable, standalone phone APK before sharing it."""
 import argparse
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -24,6 +25,50 @@ def certificate(apk, build_tools):
     return signers[0]
 
 
+def verify_update_permissions(badging):
+    permissions = set(re.findall(r"^uses-permission: name='([^']+)'", badging, re.MULTILINE))
+    if "android.permission.ACCESS_NETWORK_STATE" not in permissions:
+        raise ValueError("Missing ACCESS_NETWORK_STATE: scheduling network-constrained update jobs crashes on Android 14+.")
+
+
+def elf_alignments(name, data):
+    if data[:6] != b"\x7fELF\x02\x01":
+        raise ValueError(f"Unexpected native library format: {name}")
+    offset = struct.unpack_from("<Q", data, 32)[0]
+    entry_size, count = struct.unpack_from("<HH", data, 54)
+    alignments = []
+    for i in range(count):
+        kind, _, file_offset, virtual_address, _, _, _, alignment = struct.unpack_from("<IIQQQQQQ", data, offset + i * entry_size)
+        if kind == 1:
+            if alignment < 16384 or file_offset % 16384 != virtual_address % 16384:
+                raise ValueError(f"Native library does not support 16 KB pages: {name}")
+            alignments.append(alignment)
+    if not alignments:
+        raise ValueError(f"No loadable native segments: {name}")
+    return alignments
+
+
+def python_native_libraries(archive):
+    """Chaquopy extracts ELF files from asset archives; APK lib/ checks alone miss these."""
+    libraries = {}
+    for name in archive.namelist():
+        if not name.startswith("assets/chaquopy/"):
+            continue
+        data = archive.read(name)
+        if data.startswith(b"\x7fELF"):
+            libraries[name] = elf_alignments(name, data)
+        elif name.endswith(".imy") and zipfile.is_zipfile(io.BytesIO(data)):
+            with zipfile.ZipFile(io.BytesIO(data)) as nested:
+                for member in nested.namelist():
+                    # ELF libraries may have version suffixes, e.g. libopenblas.so.0.
+                    if ".so" in member:
+                        payload = nested.read(member)
+                        if payload.startswith(b"\x7fELF"):
+                            key = f"{name}!/{member}"
+                            libraries[key] = elf_alignments(key, payload)
+    return libraries
+
+
 def verify_apk(apk, build_tools, previous=None):
     manifest = checked([build_tools / "aapt2", "dump", "xmltree", apk, "--file", "AndroidManifest.xml"])
     for attribute in ("testOnly", "isSplitRequired"):
@@ -37,6 +82,7 @@ def verify_apk(apk, build_tools, previous=None):
     package = re.search(r"^package: name='([^']+)' versionCode='(\d+)' versionName='([^']+)'", badging, re.MULTILINE)
     if not package or package[1] != "app.pocket.local" or "application-label:'RunLocal'" not in badging:
         raise ValueError("Unexpected app identity or label.")
+    verify_update_permissions(badging)
     if "native-code: 'arm64-v8a'" not in badging:
         raise ValueError("This is not the standalone ARM64 phone build.")
     signer = certificate(apk, build_tools)
@@ -48,21 +94,8 @@ def verify_apk(apk, build_tools, previous=None):
         for name in archive.namelist():
             if not (name.startswith("lib/") and name.endswith(".so")):
                 continue
-            data = archive.read(name)
-            if data[:6] != b"\x7fELF\x02\x01":
-                raise ValueError(f"Unexpected native library format: {name}")
-            offset = struct.unpack_from("<Q", data, 32)[0]
-            entry_size, count = struct.unpack_from("<HH", data, 54)
-            alignments = []
-            for i in range(count):
-                kind, _, file_offset, virtual_address, _, _, _, alignment = struct.unpack_from("<IIQQQQQQ", data, offset + i * entry_size)
-                if kind == 1:
-                    if alignment < 16384 or file_offset % 16384 != virtual_address % 16384:
-                        raise ValueError(f"Native library does not support 16 KB pages: {name}")
-                    alignments.append(alignment)
-            if not alignments:
-                raise ValueError(f"No loadable native segments: {name}")
-            libraries[name] = alignments
+            libraries[name] = elf_alignments(name, archive.read(name))
+        libraries.update(python_native_libraries(archive))
     if "lib/arm64-v8a/libpocket_diffusion.so" not in libraries:
         raise ValueError("Diffusion library is missing.")
     return dict(package=package[1], versionCode=int(package[2]), versionName=package[3],

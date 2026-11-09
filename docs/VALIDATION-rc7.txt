@@ -1,0 +1,86 @@
+RunLocal 1.0.0-rc7 · versionCode 13 · standalone ARM64 · Android 12+
+
+UI and behavior
+---------------
+Exactly Chat and Models remain in bottom navigation.
+
+Models is one installed-model library, with All / Text / Voice / Image filters,
+a single Add model action, Use in Chat and per-model management menus. URL setup,
+supported voice downloads and local imports open in an Add model panel. Saved
+locations/discovered files and image components open on demand. The former
+always-visible voice-testing form and stacked setup/library sections are gone.
+Text and voice models can be removed from their menus; image models expose their
+component files for individual removal with confirmation and a shared-file warning.
+
+Chat's shared picker lists installed text models, configured image profiles and
+each supported installed voice. Choose Woof Juno/Mira, type in the normal message
+bar, then press play. The text is saved in the conversation; a reply offers Play
+again and Text. Replay synthesizes again; temporary audio is not a permanent
+attachment. Text replies keep a speaker action, and microphone dictation remains
+available in the same composer. CPU/GPU is explicit in message tools and the
+current selection appears in the header. Woof credit remains visibly linked once
+in the composer instead of repeated below every reply.
+
+The native text engine is closed on its owning serial worker before downloaded
+speech starts. A launch fence cancels delayed startup after stop/backgrounding.
+Speech reply completion remains attached to its originating chat. Existing JSON
+fields/model keys, app ID, files and history are preserved. New voice chats use
+speech:<model-id>:<voice-id> keys; missing voices/models do not silently substitute.
+
+Validation completed
+--------------------
+- Java 21 / Python 3.13 / ARM64 / max-workers=2 combined build:
+  :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
+  :app:testReleaseUnitTest :app:assembleRelease :app:lintRelease
+  BUILD SUCCESSFUL. Release is signed and minified with the existing local
+  development signer, independently checked against rc6.
+- Debug tests: 88 total, 83 passed, 5 optional checks skipped, 0 failures/errors.
+- Release tests: 88 total, 83 passed, 5 optional checks skipped, 0 failures/errors.
+- Four new speech-chat tests cover exact voice identity across restart, unknown
+  voice rejection, originating-chat completion, stale terminal callbacks,
+  cancellation/retry and synthesis failure without false success.
+- Script suite: 16 passed. Includes speech-adapter contracts, downloader/package
+  checks and static website validation. No multi-GB models downloaded/rerun for
+  this UI change.
+- Debug and release lint: 0 errors/fatal issues, 20 warnings each. Warnings cover
+  programmatic-only view constructors, existing draw allocations/cursor use,
+  dependency/SDK recommendations, synchronous prefs and string localization.
+- Packaging verified app.pocket.local, versionCode 13, standalone ARM64,
+  non-testOnly status, signature continuity and 16 KB ZIP/native ELF alignment.
+  92 native libraries checked, including Python asset archives.
+- Git diff whitespace check passed. Source is prepared for GitHub; the APK and
+  local test artifacts stay outside source control. No APK release published.
+
+Logs/artifacts (local, not committed)
+------------------------------------
+dist/ui-rc7-build.log
+dist/ui-rc7-scripts.log
+dist/ui-rc7-package.json
+dist/INSTALLATION-CHECKS.json
+
+APK: dist/runlocal-1.0.0-rc7-arm64.apk
+Size: 96,620,480 bytes
+SHA-256:
+33aea8a95da68ac52c905a9b83f6b44e8f23b839fc1305b39cda03c1b99db0bd
+Signing certificate SHA-256 (same as rc6):
+4dc9269b18a7432cd749fe1a5bf73fb62cdcb126f501b3b84bdf598c75829e9f
+
+Remaining device review
+-----------------------
+The user reports the earlier build working on their phone. No phone is connected
+to this workspace, and Pocket_API_35 previously failed to boot because the host
+lacks KVM/CPU virtualization. The new UI has NOT been inspected on an emulator
+or phone here. Builds, lint and unit tests do not certify rendered layout,
+keyboard behavior, touch targets, audio output, recognition or inference.
+
+Install over rc6 without uninstalling. Confirm existing chats/models remain.
+Check the library filters, Add panel, saved locations, component removal and
+per-model menus. Select Juno and Mira in Chat and test send/replay, stop before
+playback, backgrounding, chat switching, restart and removed-model errors.
+Check narrow screens, long names, large fonts, keyboard and scrolling. Confirm
+text/image chats, CPU/GPU choice, read-aloud and offline microphone still work.
+See docs/SPEECH-MODELS.md and V1-READINESS.md for acceptance steps.
+
+No runtime/model upgrade or fix for the earlier LFM3 host correctness failure is
+asserted. Historical text/voice host results remain recorded separately in
+docs/FEATURE-VALIDATION-2026-11-09.md. This candidate is not stable v1.

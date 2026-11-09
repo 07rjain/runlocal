@@ -20,7 +20,7 @@ The release workflow creates a **draft** for review. The selected repository is 
 
 ## Update behavior and limits
 
-The app checks the GitHub `/releases/latest` endpoint for **published stable releases**. Drafts/prereleases do not trigger notifications. Enabled official builds check at most daily on foreground use and schedule a network-constrained periodic Android job. Android can delay jobs, and force-stopped apps do not run them. Manual checks are available under history → App updates or composer tools → App updates. No prompts, files or device identifiers are uploaded; GitHub receives ordinary network request metadata.
+The app checks the GitHub `/releases/latest` endpoint for **published stable releases**. Drafts/prereleases do not trigger notifications. Enabled official builds check at most daily on foreground use and schedule a network-constrained periodic Android job. Android can delay jobs, and force-stopped apps do not run them. Manual checks are available under history → App updates. No prompts, files or device identifiers are uploaded; GitHub receives ordinary network request metadata.
 
 Android 13+ needs notification permission; denied notifications do not prevent foreground update notices. The automatic toggle also cancels periodic work. Notifications open the validated GitHub release page. Users download the signed APK and approve Android installation; this app does not silently replace itself. The update mechanism cannot be retrofitted remotely into already-installed rc2/older binaries: those users first install a build containing it with the correct repository and signer.
 
