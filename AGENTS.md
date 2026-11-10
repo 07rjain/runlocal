@@ -7,7 +7,7 @@ Read README.md, CHANGELOG.md and V1-READINESS.md before changing release behavio
 - Kotlin 2.3.20, R8 9.1.31 override (LiteRT dependency Kotlin 2.4 metadata), Android Gradle Plugin 8.13.2, Gradle wrapper 8.13; Java 21 build/test runtime, Java 17 bytecode target. Android 12/API 31 minimum, target/compile API 36. Native Android Views; no Compose/React Native migration is implied.
 - LiteRT-LM Android 0.18.1 for text; CPU or GPU selected per model. JNI stable-diffusion.cpp + GGML for images, CPU-only. Exact native revisions: native-deps.lock; run scripts/bootstrap-native.sh. NDK 28.2.13676358, CMake 3.22.1.
 - MainActivity: view construction/lifecycle, chat coordination, offline Android speech. LocalEngine/LiteRtTextSession: serial native lifecycle and typed model conversations. ChatRepository: atomic per-chat files and idempotent reply completion. ModelStore/ImageStore: private model copies and persisted setup/job state. PhoneModelLibrary/Scanner: SAF grants, bounded discovery, preserved originals. Download/image foreground services run in separate processes.
-- ReleaseFeed: strict stable GitHub release parsing. UpdateNotifications: optional daily JobScheduler checks and notification. Never send chats, prompts, images, model files or identifiers to an update endpoint.
+- ReleaseFeed: strict same-repository GitHub release parsing, stable by default with explicit candidate opt-in. UpdateNotifications: optional daily JobScheduler checks and notification. Never send chats, prompts, images, model files or identifiers to an update endpoint.
 
 ## Rules learned during development
 

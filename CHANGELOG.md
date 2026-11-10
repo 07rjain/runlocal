@@ -7,6 +7,13 @@ Versions are ordered newest first. Earlier entries reconstruct the local develop
 ### Added
 - Static landing page in `website/` with a GitHub Pages deployment workflow and a markup/link checker. No app changes.
 
+## [1.0.0-rc8] - 2026-11-10
+
+### Fixed
+- Offer published GitHub release candidates through an explicit **Include release candidates (experimental)** setting in App updates. Stable-only checks remain the default; development candidates stay clearly labeled and drafts are excluded.
+- Select the highest validated version code from the most recent 30 releases when candidate updates are enabled, retaining same-repository release/APK validation and the metadata size limit. Clear cached availability on channel changes and reject an in-flight result from the previous channel.
+- Rc7 and older check only GitHub's stable-release endpoint. Install rc8 once from GitHub, then enable candidate updates to receive future candidate notices. Updates still require user-approved APK installation; chat/model data is never sent.
+
 ## [1.0.0-rc7] - 2026-11-09
 
 ### Changed

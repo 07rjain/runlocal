@@ -683,8 +683,16 @@ class MainActivity : Activity() {
     private fun showUpdateSettings() {
         val updates = UpdateNotifications(this)
         if (!updates.configured) { notice("App updates", "Automatic updates will be available when the official GitHub release repository is configured. This build has no release server configured."); return }
+        val panel = column().apply { setPadding(dp(20), dp(8), dp(20), dp(8)) }
+        add(panel, text("Check public GitHub releases about once a day. No chats or models are sent. Android may delay background checks. You approve APK installation.", 14f))
+        add(panel, CheckBox(this).apply {
+            text = "Include release candidates (experimental)"; setTextColor(ink); minHeight = dp(48)
+            isChecked = updates.includePrereleases
+            setOnCheckedChangeListener { _, checked -> updates.includePrereleases = checked }
+        }, top = 12)
+        add(panel, text("Off: stable releases only. On: stable releases and development candidates such as rc7.", 12f, muted), top = 4)
         AlertDialog.Builder(this).setTitle("App updates")
-            .setMessage("Check GitHub for stable releases about once a day and show a notification. No chats or models are sent. Android may delay background checks. Updates open the GitHub release page; you approve installation.")
+            .setView(panel)
             .setPositiveButton("Check now") { _, _ -> checkAppUpdates(true) }
             .setNeutralButton(if (updates.enabled) "Disable automatic checks" else "Enable automatic checks") { _, _ ->
                 updates.enabled = !updates.enabled
@@ -709,14 +717,15 @@ class MainActivity : Activity() {
                 checkingUpdates = false
                 if (destroyed) return@runOnUiThread
                 result.onSuccess { update ->
-                    if (update == null) { if (manual) toast("No newer stable release is available.") }
+                    if (update?.prerelease == true && !updates.includePrereleases) return@onSuccess
+                    if (update == null) { if (manual) toast("No newer release is available for your update channel.") }
                     else {
                         val prefs = getSharedPreferences("app-updates", MODE_PRIVATE)
                         if (!manual && prefs.getInt("shownVersion", 0) >= update.versionCode) return@onSuccess
                         prefs.edit().putInt("shownVersion", update.versionCode).apply()
                         runCatching { updates.notify(update) }
                         AlertDialog.Builder(this).setTitle("RunLocal ${update.versionName} is available")
-                            .setMessage("Open the GitHub release to download the signed update. Your chats and models stay on this device.")
+                            .setMessage((if (update.prerelease) "This is an experimental release candidate.\n\n" else "") + "Open the GitHub release to download the signed update. Your chats and models stay on this device.")
                             .setPositiveButton("View release") { _, _ -> openUrl(update.releaseUrl) }.setNegativeButton("Later", null).show()
                     }
                 }.onFailure { if (manual) notice("Could not check updates", it.message.orEmpty()) }

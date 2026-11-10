@@ -4,15 +4,17 @@ import com.google.gson.JsonParser
 import java.net.HttpURLConnection
 import java.net.URL
 
-data class AppUpdate(val versionCode: Int, val versionName: String, val releaseUrl: String)
+data class AppUpdate(val versionCode: Int, val versionName: String, val releaseUrl: String, val prerelease: Boolean = false)
 
 /** Read-only public release metadata. No device identifiers or application content are sent. */
 object ReleaseFeed {
     fun validRepository(value: String) = Regex("[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9][A-Za-z0-9._-]{0,99}").matches(value)
-    fun parse(json: String, repository: String, installedCode: Int): AppUpdate? {
+    fun parse(json: String, repository: String, installedCode: Int, includePrereleases: Boolean = false): AppUpdate? {
         require(validRepository(repository)) { "Release repository is not configured." }
         val release = JsonParser.parseString(json).asJsonObject
-        if (release.get("draft")?.asBoolean != false || release.get("prerelease")?.asBoolean != false) return null
+        if (release.get("draft")?.asBoolean != false) return null
+        val prerelease = release.get("prerelease")?.takeUnless { it.isJsonNull }?.asBoolean ?: return null
+        if (prerelease && !includePrereleases) return null
         val tag = release.get("tag_name")?.asString ?: return null
         if (!Regex("v?[0-9][A-Za-z0-9.+-]{0,80}").matches(tag)) return null
         val markers = Regex("<!-- runlocal-version-code: ([0-9]+) -->").findAll(release.get("body")?.takeUnless { it.isJsonNull }?.asString.orEmpty()).toList()
@@ -26,11 +28,20 @@ object ReleaseFeed {
             val asset = it.asJsonObject
             asset.get("name")?.asString == assetName && asset.get("browser_download_url")?.asString == expectedAsset && (asset.get("size")?.asLong ?: 0) > 0
         } == true
-        return if (hasApk) AppUpdate(code, tag.removePrefix("v"), url) else null
+        return if (hasApk) AppUpdate(code, tag.removePrefix("v"), url, prerelease) else null
     }
-    fun fetch(repository: String, installedCode: Int): AppUpdate? {
+    fun parseFeed(json: String, repository: String, installedCode: Int, includePrereleases: Boolean = false): AppUpdate? {
+        require(validRepository(repository)) { "Release repository is not configured." }
+        // Each entry is untrusted public JSON. An invalid entry must not hide a
+        // separately valid release; all accepted entries still pass the same checks.
+        return JsonParser.parseString(json).asJsonArray.mapNotNull { entry ->
+            runCatching { parse(entry.toString(), repository, installedCode, includePrereleases) }.getOrNull()
+        }.maxByOrNull { it.versionCode }
+    }
+    fun fetch(repository: String, installedCode: Int, includePrereleases: Boolean = false): AppUpdate? {
         require(validRepository(repository))
-        val connection = URL("https://api.github.com/repos/$repository/releases/latest").openConnection() as HttpURLConnection
+        val path = if (includePrereleases) "releases?per_page=30" else "releases/latest"
+        val connection = URL("https://api.github.com/repos/$repository/$path").openConnection() as HttpURLConnection
         try {
             connection.connectTimeout = 10000; connection.readTimeout = 10000; connection.instanceFollowRedirects = false
             connection.setRequestProperty("Accept", "application/vnd.github+json")
@@ -47,7 +58,8 @@ object ReleaseFeed {
                 }
                 output.toByteArray()
             }
-            return parse(bytes.toString(Charsets.UTF_8), repository, installedCode)
+            val json = bytes.toString(Charsets.UTF_8)
+            return if (includePrereleases) parseFeed(json, repository, installedCode, true) else parse(json, repository, installedCode)
         } finally { connection.disconnect() }
     }
 }

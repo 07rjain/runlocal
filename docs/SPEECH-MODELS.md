@@ -4,7 +4,7 @@ RunLocal rc7 uses one model library and one Chat interface for text, voice and i
 
 ## Use a voice in Chat
 
-1. Install `dist/runlocal-1.0.0-rc7-arm64.apk` over the previous candidate. Keep the existing app installed so chats and models survive. This remains a development candidate.
+1. Install `dist/runlocal-1.0.0-rc8-arm64.apk` over the previous candidate. Keep the existing app installed so chats and models survive. This remains a development candidate.
 2. Open **Models → Add model → Supported voice models → Underdog Woof**. Read the license summary and tap **Download model**. The 40.6 MB weights download separately and may use mobile data. Keep RunLocal open; paused downloads can be resumed from this panel.
 3. Woof appears alongside installed text/image models in the library. Tap **Use in Chat**, then choose **Juno** or **Mira**. You can also choose either voice from the model picker at the top of Chat.
 4. Type English text into the normal message bar and tap **play**. RunLocal speaks it and saves the text in this voice conversation. Speech is limited to 2,000 characters per reading.

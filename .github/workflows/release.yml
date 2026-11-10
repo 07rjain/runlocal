@@ -64,6 +64,8 @@ jobs:
           report = json.loads(Path('dist/INSTALLATION-CHECKS.json').read_text())
           if report['certificateSha256'].lower() != os.environ['EXPECTED_CERTIFICATE_SHA256'].lower():
               raise SystemExit('Signing certificate changed; refusing this release.')
+          name = f"runlocal-{report['versionName']}-arm64.apk"
+          Path('dist/SHA256SUMS').write_text(f"{report['sha256']}  {name}\n")
           PY
           python3 scripts/release_notes.py --report dist/INSTALLATION-CHECKS.json --tag "$RELEASE_TAG" --output dist/RELEASE-NOTES.md
       - name: Create reviewable GitHub draft

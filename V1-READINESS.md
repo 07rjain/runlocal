@@ -1,6 +1,6 @@
 # Version 1 readiness
 
-The current deliverable is **1.0.0-rc7**, a development candidate for review. The selected public repository is https://github.com/07rjain/runlocal; rc4 was published as an experimental prerelease, rc5 fixes a missing permission in startup update scheduling, rc6 adds extensible offline speech with the first Woof adapter, and rc7 unifies model management and adds voice conversations in Chat. Physical-device acceptance remains pending.
+The current deliverable is **1.0.0-rc8**, a development candidate for review. The selected public repository is https://github.com/07rjain/runlocal; rc4 was published as an experimental prerelease, rc5 fixes a missing permission in startup update scheduling, rc6 adds extensible offline speech with the first Woof adapter, rc7 unifies model management and adds voice conversations in Chat, and rc8 adds opt-in candidate updates. Physical-device acceptance remains pending.
 
 ## Implemented for this candidate
 
@@ -33,7 +33,7 @@ The current deliverable is **1.0.0-rc7**, a development candidate for review. Th
 - [ ] Download Woof in Models; test Juno and Mira in airplane mode, selection after restart, Read aloud on replies/drafts, cancellation/backgrounding, failed-download resume, removal and memory/process-death behavior. Record measured speech load/generation durations.
 - [ ] Test offline microphone/read-aloud, denied permissions, keyboard/rotation, long chats, and accessibility on the phone.
 - [ ] Verify live streaming, loading states, measured TTFT/token rates, saved metrics and chat switching during generation on CPU/GPU.
-- [ ] Verify the single composer on a phone, notification permission/disable behavior, stable release detection and signed APK update continuity.
+- [ ] Verify the single composer on a phone, notification permission/disable behavior, stable-only and opt-in candidate release detection, channel changes, and signed APK update continuity.
 - [ ] Measure memory, speed, thermal behavior, and battery use. Keep MOSS experimental until full matching base+adapter generation succeeds on target hardware.
 
 ## Before public open-source release

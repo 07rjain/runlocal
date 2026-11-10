@@ -1,0 +1,54 @@
+RunLocal 1.0.0-rc8 / versionCode 14 / Android 12+ / ARM64
+Validated 2026-11-10
+
+Behavior
+--------
+Stable releases remain the default. History -> App updates has an explicit
+Include release candidates (experimental) checkbox. Candidate checks read the
+most recent 30 public GitHub releases and choose the highest validated version
+code. Drafts, malformed entries, foreign URLs, missing ARM64 assets, ambiguous
+version markers and installed/older versions are excluded. Candidate notices
+are labeled experimental. Channel changes clear cached availability and notices;
+an in-flight result from a different channel is discarded. No chats, model
+files or device identifiers are sent. APK installation still needs user action.
+
+Rc7 and older cannot discover prereleases. Install rc8 once over the existing
+app without uninstalling, then enable candidate updates for future versions.
+Exactly Chat and Models remain. No inference/runtime changes in this version.
+The release workflow checksum now lists only the APK actually uploaded.
+
+Validation completed locally
+----------------------------
+- Combined Java 21 / Python 3.13 / ARM64 build, max-workers=2:
+  :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
+  :app:testReleaseUnitTest :app:assembleRelease :app:lintRelease
+  BUILD SUCCESSFUL.
+- Debug and release each: 91 tests, 86 passed, 5 optional skipped,
+  0 failures/errors. New parser tests cover candidate opt-in, draft exclusion,
+  highest-version selection and independently invalid metadata entries.
+- Lint: 0 errors and 20 warnings in each variant.
+- Python script suite: 16 passed, including static website validation.
+- Signed minified APK verified against rc7 for signer continuity, identity,
+  standalone/non-test-only ARM64 status, 16 KB ZIP alignment and all
+  92 native ELF libraries, including Python asset archives.
+
+Local APK (the GitHub CI artifact has its own attached report/hash)
+----------------------------------------------------------------
+File: dist/runlocal-1.0.0-rc8-arm64.apk
+Size: 96620480 bytes
+SHA-256: e871578ebef23cffa0118ac650c7f26f9068dda952d24d7c158bf6133bdb8dc8
+Certificate SHA-256: 4dc9269b18a7432cd749fe1a5bf73fb62cdcb126f501b3b84bdf598c75829e9f
+Local logs: dist/rc8-update-build.log, dist/rc8-update-scripts.log,
+dist/rc8-package.log and dist/INSTALLATION-CHECKS.json (not committed).
+
+Limits and release review
+-------------------------
+No physical phone is connected and the available emulator cannot boot without
+KVM. Checkbox layout, notification permission/channel changes and Android APK
+installation have not been exercised on a phone here. No inference/model tests
+were rerun for this update-only change. Historical inference limitations remain
+in docs/FEATURE-VALIDATION-2026-11-09.md and V1-READINESS.md.
+GitHub CI builds a draft; download and independently inspect that signed APK
+before publication. Public-feed verification is performed after publication and
+recorded in the release's attached VALIDATION.txt. This local record does not
+claim a release has already been published or device acceptance completed.

@@ -1,6 +1,6 @@
 # Releasing RunLocal
 
-The release workflow creates a **draft** for review. The selected repository is https://github.com/07rjain/runlocal and the application license is Apache-2.0. The source is published in that repository; an app release has not yet been published. CI cannot establish actual phone inference; complete V1-READINESS.md before stable v1.
+The release workflow creates a **draft** for review. The selected repository is https://github.com/07rjain/runlocal and the application license is Apache-2.0. The source is published in that repository; experimental APK releases are published as GitHub prereleases. CI cannot establish actual phone inference; complete V1-READINESS.md before stable v1.
 
 ## Configure once
 
@@ -20,7 +20,7 @@ The release workflow creates a **draft** for review. The selected repository is 
 
 ## Update behavior and limits
 
-The app checks the GitHub `/releases/latest` endpoint for **published stable releases**. Drafts/prereleases do not trigger notifications. Enabled official builds check at most daily on foreground use and schedule a network-constrained periodic Android job. Android can delay jobs, and force-stopped apps do not run them. Manual checks are available under history → App updates. No prompts, files or device identifiers are uploaded; GitHub receives ordinary network request metadata.
+By default, the app checks GitHub `/releases/latest` for **published stable releases**. Rc8 and later offer **Include release candidates (experimental)** in history → App updates. When enabled, the checker reads the most recent 30 public releases and selects the highest valid versionCode across stable releases and prereleases. Drafts, missing/ambiguous markers, foreign release/APK URLs, missing ARM64 assets and versions at or below the installed code are rejected. Availability caches are separated/reset when the channel changes. Candidates are labeled experimental in notices. Rc7 and older cannot discover prereleases: users must manually install rc8 once and enable the option for future candidate updates. Enabled official builds check at most daily on foreground use and schedule a network-constrained periodic Android job. Android can delay jobs, and force-stopped apps do not run them. Manual checks are available under history → App updates. No prompts, files or device identifiers are uploaded; GitHub receives ordinary network request metadata.
 
 Android 13+ needs notification permission; denied notifications do not prevent foreground update notices. The automatic toggle also cancels periodic work. Notifications open the validated GitHub release page. Users download the signed APK and approve Android installation; this app does not silently replace itself. The update mechanism cannot be retrofitted remotely into already-installed rc2/older binaries: those users first install a build containing it with the correct repository and signer.
 
