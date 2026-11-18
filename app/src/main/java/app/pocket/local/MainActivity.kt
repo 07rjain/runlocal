@@ -328,6 +328,10 @@ class MainActivity : Activity() {
             add(LibraryEntry("image:$profile", imageStore.profileLabel(profile).substringAfter('/'), LibraryKind.IMAGE,
                 "${size(bytes)} · ${files.size} files", bytes))
         }
+        if (MirageModel.supportedAbi && MirageModel.installed(this@MainActivity)) {
+            add(LibraryEntry("ocr:mirage", MirageModel.title, LibraryKind.OCR,
+                "${size(MirageModel.size)} · Offline Latin-script text", MirageModel.size))
+        }
     }
 
     private fun useLibraryEntry(entry: LibraryEntry) {
@@ -340,6 +344,10 @@ class MainActivity : Activity() {
                 imageStore.selectLocalProfile(entry.key.removePrefix("image:")); mode = "Image"; bindSelectedModel(); navigate("Chat")
             }.onFailure { notice("Could not select model", it.message.orEmpty()) }
             LibraryKind.VOICE -> chooseSpeechVoice(SpeechModelCatalog.find(entry.key.removePrefix("speech:")))
+            LibraryKind.OCR -> {
+                navigate("Chat")
+                readImageText()
+            }
         }
     }
 
@@ -359,9 +367,9 @@ class MainActivity : Activity() {
     private fun showModelPicker() {
         saveDraft()
         showPanel("Choose a model") { panel, dialog ->
-            val entries = libraryEntries()
+            val entries = libraryEntries().filterNot { it.kind == LibraryKind.OCR }
             if (entries.isEmpty()) add(panel, text("Add your first model to get started.", 14f, muted), top = 8)
-            LibraryKind.entries.forEach { kind ->
+            LibraryKind.entries.filterNot { it == LibraryKind.OCR }.forEach { kind ->
                 val models = entries.filter { it.kind == kind }
                 if (models.isNotEmpty()) add(panel, label(if (kind == LibraryKind.TEXT) "Text chat" else if (kind == LibraryKind.VOICE) "Text to speech" else "Image generation"), top = 18)
                 models.forEach { entry ->
@@ -661,6 +669,7 @@ class MainActivity : Activity() {
 
     private fun showComposerTools(isImage: Boolean) {
         val actions = mutableListOf<Pair<String, () -> Unit>>()
+        if (MirageModel.supportedAbi) actions.add("Extract text from an image" to { readImageText() })
         if (isImage && chat.model == "image:sd15") {
             actions.add("Attach starting image" to { chooseStartingImage() })
             if (!getSharedPreferences("image-ui", MODE_PRIVATE).getString("input", "").isNullOrEmpty()) actions.add("Remove starting image" to {
@@ -678,6 +687,35 @@ class MainActivity : Activity() {
         actions.add("Stop speech" to { stopSpeech() })
         AlertDialog.Builder(this).setTitle("Message tools").setItems(actions.map { it.first }.toTypedArray()) { _, index -> actions[index].second() }
             .setNegativeButton("Close", null).show()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun openOcr(targetChat: String? = null) {
+        startActivityForResult(Intent(this, OcrActivity::class.java).apply {
+            if (targetChat != null) putExtra(OcrActivity.CHAT_ID, targetChat)
+        }, OcrActivity.REQUEST)
+    }
+
+    private fun readImageText() {
+        if (busy || speechActive || imageStore.running()) {
+            toast("Wait for the current operation to finish.")
+            return
+        }
+        val origin = chat.id
+        saveDraft()
+        busy = true
+        busyMessage = "Preparing offline OCR…"
+        render()
+        worker.execute {
+            val release = runCatching { engine.close() }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                busy = false
+                render()
+                release.onFailure { notice("Could not release the text model", it.message.orEmpty()); return@runOnUiThread }
+                if (screen == "Chat" && chat.id == origin) openOcr(origin)
+            }
+        }
     }
 
     private fun showUpdateSettings() {
@@ -914,6 +952,13 @@ class MainActivity : Activity() {
                     dialog.dismiss(); showSpeechModelDetails(spec)
                 }, top = 10)
             }
+            if (MirageModel.supportedAbi) {
+                add(panel, label("Offline OCR"), top = 28)
+                add(panel, pickerRow(MirageModel.title, "${size(MirageModel.size)} · Printed Latin-script text",
+                    MirageModel.installed(this)) {
+                    dialog.dismiss(); openOcr()
+                }, top = 10)
+            }
             add(panel, label("From your phone"), top = 28)
             add(panel, pickerRow("Import model files", "Choose downloaded files") { dialog.dismiss(); chooseLocalModelFiles() }, top = 10)
             add(panel, pickerRow("Connect a model folder", "Find models in a shared folder") { dialog.dismiss(); chooseModelFolder() }, top = 8)
@@ -952,20 +997,26 @@ class MainActivity : Activity() {
     }
 
     private fun manageLibraryEntry(entry: LibraryEntry) {
-        val actions = if (entry.kind == LibraryKind.VOICE) arrayOf("Model & license", "Use in Chat", "Remove model")
-            else arrayOf("Model details", "Use in Chat", if (entry.kind == LibraryKind.IMAGE) "Remove model files…" else "Remove model")
+        val actions = when (entry.kind) {
+            LibraryKind.VOICE -> arrayOf("Model & license", "Use in Chat", "Remove model")
+            LibraryKind.OCR -> arrayOf("Model & license", "Use in Chat", "Manage download")
+            LibraryKind.TEXT -> arrayOf("Model details", "Use in Chat", "Remove model")
+            LibraryKind.IMAGE -> arrayOf("Model details", "Use in Chat", "Remove model files…")
+        }
         AlertDialog.Builder(this).setTitle(entry.title).setItems(actions) { _, index ->
             when (index) {
                 0 -> when (entry.kind) {
                     LibraryKind.VOICE -> showSpeechModelDetails(SpeechModelCatalog.find(entry.key.removePrefix("speech:")))
                     LibraryKind.TEXT -> notice(entry.title, "Text chat · ${size(entry.bytes)}\nStored privately in RunLocal. Choose CPU or GPU from Chat's message tools.")
                     LibraryKind.IMAGE -> showImageFiles(entry.key.removePrefix("image:"))
+                    LibraryKind.OCR -> openUrl(MirageModel.modelUrl)
                 }
                 1 -> useLibraryEntry(entry)
                 2 -> when (entry.kind) {
                     LibraryKind.TEXT -> store.models().firstOrNull { "text:${it.id}" == entry.key }?.let { deleteModel(it) }
                     LibraryKind.VOICE -> removeSpeechModel(SpeechModelCatalog.find(entry.key.removePrefix("speech:")))
                     LibraryKind.IMAGE -> showImageFiles(entry.key.removePrefix("image:"))
+                    LibraryKind.OCR -> openOcr()
                 }
             }
         }.setNegativeButton("Close", null).show()
@@ -1046,6 +1097,19 @@ class MainActivity : Activity() {
     @Deprecated("Platform activity result API")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == OcrActivity.REQUEST) {
+            if (resultCode == RESULT_OK && data?.getStringExtra(OcrActivity.CHAT_ID) == chat.id) {
+                val recognized = data.getStringExtra(OcrActivity.TRANSCRIPT).orEmpty()
+                if (recognized.isNotBlank()) {
+                    saveDraft()
+                    draft = if (draft.isBlank()) recognized else "$draft\n\n$recognized"
+                    chat.draft = draft
+                    saveChat()
+                }
+            }
+            render()
+            return
+        }
         if (resultCode != RESULT_OK) return
         if (requestCode == 300) {
             data?.data?.let { scanPhoneModels(listOf(it to true)) }
@@ -1263,6 +1327,7 @@ class MainActivity : Activity() {
 
     private fun startModelSetup(action: String, url: String?) {
         if (action == ModelDownloadService.RESOLVE) {
+            if (MirageModel.matchesLink(url.orEmpty())) { modelSheet?.dismiss(); openOcr(); return }
             SpeechModelCatalog.forLink(url.orEmpty())?.let { modelSheet?.dismiss(); downloadSpeechModel(it); return }
         }
         if (busy || imageStore.running()) { toast("Wait for the current operation to finish."); return }

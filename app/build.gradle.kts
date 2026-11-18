@@ -22,7 +22,7 @@ android {
         versionName = "1.0.0-rc8"
         ndk { abiFilters += runlocalAbis }
         buildConfigField("String", "RELEASE_REPOSITORY", "\"$releaseRepository\"")
-        externalNativeBuild { cmake { arguments += listOf("-DANDROID_STL=c++_shared"); targets += "pocket_diffusion" } }
+        externalNativeBuild { cmake { arguments += listOf("-DANDROID_STL=c++_shared"); targets += listOf("pocket_diffusion", "pocket_ocr") } }
     }
     // Chaquopy requires ndk.abiFilters, which AGP forbids alongside ABI splits.
     // Build a standalone APK for the requested ABI set and retain the phone output filename.

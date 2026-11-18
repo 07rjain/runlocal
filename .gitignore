@@ -6,6 +6,7 @@ local.properties
 *.iml
 .cxx/
 third_party/stable-diffusion.cpp/
+third_party/cactus-android-arm64/
 *.jks
 *.keystore
 *.pem

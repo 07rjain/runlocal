@@ -37,6 +37,9 @@ class NativeBootstrapTest(unittest.TestCase):
         script = script.replace('https://github.com/leejet/stable-diffusion.cpp.git', str(source))
         script = re.sub(r'^revision=[0-9a-f]+$', f'revision={self.revision}', script, flags=re.M)
         self.script.write_text(script)
+        cactus = self.project / 'scripts' / 'bootstrap-cactus.sh'
+        cactus.write_text('#!/usr/bin/env bash\ntouch -- "$(dirname "$0")/cactus-invoked"\n')
+        cactus.chmod(0o755)
         self.target = self.project / 'third_party' / 'stable-diffusion.cpp'
 
     def bootstrap(self):
@@ -47,6 +50,7 @@ class NativeBootstrapTest(unittest.TestCase):
         self.assertEqual(0, first.returncode, first.stderr)
         self.assertEqual(self.revision, self.git('-C', self.target, 'rev-parse', 'HEAD'))
         self.assertTrue((self.target / 'ggml' / 'CMakeLists.txt').is_file())
+        self.assertTrue((self.project / 'scripts' / 'cactus-invoked').is_file())
         self.assertEqual('', self.git('-C', self.target, 'status', '--porcelain'))
         second = self.bootstrap()
         self.assertEqual(0, second.returncode, second.stderr)

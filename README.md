@@ -34,7 +34,8 @@ Completed text replies include decode tokens/sec, runtime time to first token (T
 | MOSS Image SFT | Experimental component pipeline and automatic dependency setup for supported LoRAs. Full phone generation has not been verified. |
 | Speech-to-text | Installed Android on-device speech recognition; no network fallback. |
 | Text-to-speech | Android installed offline voices, plus an extensible downloaded-model system. Underdog Woof (English Juno/Mira) is the first supported adapter; Android inference is experimental pending phone acceptance. |
-| Video, GGUF text, Cactus-native inference, `.task`, ONNX | Not supported by the installed runtimes. Recognizable local files can still be listed with compatibility labels. |
+| OCR (unreleased) | Experimental Cactus Mirage for printed Latin-script text on ARM64. Install via **Models → Add model**, then use **Chat → ＋ → Extract text from an image**. See [OCR setup and validation](docs/MIRAGE-OCR.md). |
+| Video, GGUF text, arbitrary Cactus bundles, `.task`, ONNX | Not supported by the installed runtimes. Recognizable local files can still be listed with compatibility labels. |
 
 Arbitrary Hugging Face repositories are not interchangeable. Unsupported architectures, gated/private downloads, multi-shard Diffusers pipelines, and automatic conversion are not implemented. Only reviewed, bundled runtime code executes; downloaded repositories cannot supply executable Python code. Arbitrary speech formats require a compatible adapter and are rejected. Model licenses and access terms apply separately.
 
@@ -44,13 +45,13 @@ The example `https://huggingface.co/axiomofmind/Moss-image-nsfw-uncensored-lora`
 
 The reported `UNIMPLEMENTED / Failed to load model from buffer` happened with the previous LiteRT-LM **0.8.0** runtime. The [LFM3 export card](https://huggingface.co/litert-community/LFM3-1.7B-LiteRT) and its `litertlm_manifest.json` specify **0.18.1** as the minimum runtime, and list CPU/GPU support for the mixed-int4 file. Rc2 upgrades to that version, adapts the Kotlin APIs/compiler, includes the optional OpenCL native-library declarations required on Android, and isolates LFM3’s running convolution state between chats. Model-load errors are explained separately from context/memory/GPU errors. This fixes the identified version mismatch; successful inference with the exact weights on a Motorola Edge 60 Pro remains unverified.
 
-The Cactus Android build/bindings were reviewed. This `.litertlm` file is run by LiteRT-LM, not the Cactus engine; a Cactus integration would not replace the format-specific runtime upgrade. No Cactus code was added.
+The LFM3 `.litertlm` export uses LiteRT-LM. RunLocal’s separate Cactus adapter only reads images with the Mirage OCR model.
 
 ## Existing local models
 
 RunLocal models appear automatically. On launch and when opening Models, the app scans accessible saved locations and adopts existing persisted Android document grants. When no model is selected, an existing app model is selected automatically. If none is available, a small supported text model or recognizable complete image-checkpoint candidate from an accessible connected folder can be imported and selected automatically. Imports create an app-private copy; original files are preserved. Previously associated imported copies are reused.
 
-Connect a shared model folder once through **Models → Add model → Connect a model folder**. Saved locations and discovered files are under **Models → Files & folders**. Android may require this initial permission. **Import model files** supports multiple file selections when Android restricts folder access. RunLocal cannot enumerate another app's private storage, obtain grants given only to Cactus, or bypass scoped storage. Cactus downloads appear only when they are in an accessible shared/exported location. Cactus-native bundles can be identified but cannot run with the current engines.
+Connect a shared model folder once through **Models → Add model → Connect a model folder**. Saved locations and discovered files are under **Models → Files & folders**. Android may require this initial permission. **Import model files** supports multiple file selections when Android restricts folder access. RunLocal cannot enumerate another app's private storage, obtain grants given only to Cactus, or bypass scoped storage. Cactus downloads appear only when they are in an accessible shared/exported location. The Mirage OCR adapter installs its own pinned copy and does not import arbitrary Cactus bundles.
 
 Scanning is bounded to 5,000 metadata entries per location, depth 12, and 16 MB total header reads (128 KB per candidate). Partial scans report limits. Disconnect removes a location/grant, not source files or imported copies. No broad all-files storage permission is requested.
 
@@ -111,7 +112,7 @@ Code map:
 - `LocalEngine.kt`: serial CPU/GPU LiteRT-LM text adapter behind `TextRuntime`.
 - `ImageGenerationService.kt` / `NativeDiffusion.kt` / `cpp/diffusion_jni.cpp`: isolated CPU diffusion process, notifications/cancellation and PNG output.
 
-RunLocal uses established inference engines instead of writing a runtime from scratch. Cactus Chat was investigated during prototyping; its app and engine have not been incorporated. A future Cactus adapter requires separate integration, compatibility testing, and license review.
+RunLocal uses LiteRT-LM for chat, stable-diffusion.cpp for images, and the Cactus C API for the pinned Mirage OCR model on ARM64. The OCR adapter accepts selected images and extracts text. Cactus Chat’s app and support for its other models are outside this integration.
 
 Downloaded speech setup currently supports only the reviewed Woof recipe. Additional speech families need a runtime adapter, model manifest, license review and phone tests; this does not make arbitrary ONNX, GGUF, NPZ or Safetensors voice models interchangeable. Speech setup pauses when leaving RunLocal and resumes from partial files. Speech playback is foreground-only and stops when leaving the app. Woof downloads are about 40.6 MB, while runtime RAM is substantially larger; setup includes no model weights in the APK. Its non-commercial license requires visible attribution and separate commercial permission.
 

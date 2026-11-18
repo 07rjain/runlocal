@@ -2,3 +2,4 @@ stable-diffusion.cpp https://github.com/leejet/stable-diffusion.cpp 290148d2e31c
 ggml https://github.com/leejet/ggml d49c49e1dd361ba3c0a77c90b5b1404b83969aa8
 android-ndk 28.2.13676358
 cmake 3.22.1
+cactus-android-arm64 https://huggingface.co/Cactus-Compute/cactus f4ab2741203a282c6e7b89983de2b5e5b2e805a8 4.1.4

@@ -11,7 +11,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 
 enum class LibraryKind(val title: String, val symbol: String) {
-    TEXT("Text", "Aa"), VOICE("Voice", "♫"), IMAGE("Image", "▧")
+    TEXT("Text", "Aa"), VOICE("Voice", "♫"), IMAGE("Image", "▧"), OCR("OCR", "▤")
 }
 
 data class LibraryEntry(val key: String, val title: String, val kind: LibraryKind,
@@ -43,7 +43,8 @@ class ModelLibraryView(
     init {
         orientation = VERTICAL
         val filters = LinearLayout(activity).apply { orientation = HORIZONTAL }
-        (listOf("All") + LibraryKind.entries.map { it.title }).forEach { title ->
+        val kinds = LibraryKind.entries.filter { it != LibraryKind.OCR || MirageModel.supportedAbi }
+        (listOf("All") + kinds.map { it.title }).forEach { title ->
             filters.addView(label(title, 13f, if (filter == title) Color.WHITE else green, true).apply {
                 gravity = Gravity.CENTER; minHeight = dp(48); setPadding(dp(18), dp(10), dp(18), dp(10))
                 background = background(if (filter == title) green else 0xffe9eee0.toInt(), 24)

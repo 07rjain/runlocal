@@ -47,4 +47,4 @@ The current deliverable is **1.0.0-rc8**, a development candidate for review. Th
 - [ ] Configure signing and review APK release contents before publication.
 - [ ] Record physical-device acceptance results and resolve blockers, then promote the candidate to a stable v1 version/tag.
 
-Video generation, arbitrary speech-model import, GGUF text, Cactus execution, authenticated downloads, and unrestricted arbitrary model conversion remain future work. They are not silently included in v1 claims.
+Video generation, arbitrary speech-model import, GGUF text, general Cactus model execution, authenticated downloads, and unrestricted arbitrary model conversion remain future work. Mirage OCR uses a single reviewed Cactus recipe and still needs the [Android phone acceptance test](docs/MIRAGE-OCR.md).

@@ -21,6 +21,8 @@
         <service android:name=".ModelDownloadService" android:exported="false" android:process=":downloads" android:foregroundServiceType="dataSync" />
         <service android:name=".SpeechService" android:exported="false" android:process=":speech" />
         <service android:name=".ImageGenerationService" android:exported="false" android:process=":image" android:foregroundServiceType="dataSync|mediaProcessing" android:stopWithTask="false" />
+        <activity android:name=".OcrActivity" android:exported="false" android:process=":ocr"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode" />
         <activity android:name=".MainActivity" android:exported="true" android:windowSoftInputMode="adjustResize" android:configChanges="orientation|screenSize|keyboardHidden|uiMode">
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
         </activity>

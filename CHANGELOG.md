@@ -5,7 +5,8 @@ Versions are ordered newest first. Earlier entries reconstruct the local develop
 ## [Unreleased]
 
 ### Added
-- Static landing page in `website/` with a GitHub Pages deployment workflow and a markup/link checker. No app changes.
+- Experimental offline OCR for printed Latin-script text using Cactus Mirage on Android ARM64. Install the pinned model from **Models → Add model** or extract text from an image in Chat’s message tools. Review, copy, or insert the result into the draft.
+- Static landing page in `website/` with a GitHub Pages deployment workflow and a markup/link checker.
 
 ## [1.0.0-rc8] - 2026-11-10
 

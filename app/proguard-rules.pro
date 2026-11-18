@@ -1,5 +1,6 @@
 -keep class com.google.ai.edge.litertlm.** { *; }
 -keep class app.pocket.local.NativeDiffusion { *; }
+-keep class app.pocket.local.MirageNative { *; }
 -keep interface app.pocket.local.NativeProgressListener { *; }
 -keep class app.pocket.local.ModelSetupPlan { *; }
 -keep class app.pocket.local.RemoteModelFile { *; }
