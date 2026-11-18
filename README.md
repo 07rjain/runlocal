@@ -83,7 +83,9 @@ See [the rc8 update validation record](docs/VALIDATION-rc8.txt), [the rc7 UI val
 
 ## Website
 
-The [RunLocal website](https://07rjain.github.io/runlocal/) includes the landing page, [installation and troubleshooting](https://07rjain.github.io/runlocal/support.html), and an [assistant guide](https://07rjain.github.io/runlocal/llms.txt). `.github/workflows/pages.yml` publishes the static files in [`website/`](website/) when they change on `main`. To deploy the same files to an authorized Vercel project, run `npx vercel deploy --cwd website --project express-squall-bwbshsl --prod`. Run `python3 scripts/check_website.py website` to check local links and markup. The landing page checks the public GitHub Releases API for the newest published APK and keeps its bundled download link available if the API is unreachable.
+The [RunLocal website](https://runlocal-android.vercel.app/) includes [installation and troubleshooting](https://runlocal-android.vercel.app/support) and an [assistant guide](https://runlocal-android.vercel.app/llms.txt). Vercel is connected to this GitHub repository and deploys [`website/`](website/) to production when changes are pushed to `main`. The [GitHub Pages mirror](https://07rjain.github.io/runlocal/) is published by `.github/workflows/pages.yml` when the website changes on `main`.
+
+Run `python3 scripts/check_website.py website` to check local links and markup. The landing page checks the public GitHub Releases API for the newest published APK and keeps its bundled download link available if the API is unreachable.
 
 ## Releases and update notifications
 

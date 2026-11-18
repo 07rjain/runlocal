@@ -6,9 +6,9 @@ RunLocal targets Android 12 (API 31) or later on ARM64. Model weights download s
 
 ## Start here
 
-- [RunLocal website](https://07rjain.github.io/runlocal/): product overview and APK download.
+- [RunLocal website](https://runlocal-android.vercel.app/): product overview and APK download. Also available on [GitHub Pages](https://07rjain.github.io/runlocal/).
 - [Signed APKs and release notes](https://github.com/07rjain/runlocal/releases): use the versioned runlocal-*-arm64.apk asset and its SHA256SUMS.
-- [Installation and troubleshooting](https://07rjain.github.io/runlocal/support.html): install and update APKs, address model failures, and configure offline speech.
+- [Installation and troubleshooting](https://runlocal-android.vercel.app/support): install and update APKs, address model failures, and configure offline speech.
 - [Usage and model compatibility](https://github.com/07rjain/runlocal#model-support): supported model formats and device requirements.
 - [Issue tracker](https://github.com/07rjain/runlocal/issues): report reproducible bugs with app version, phone model, Android version, and model details. Remove private prompts, images, and file paths.
 
