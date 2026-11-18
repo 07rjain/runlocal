@@ -104,8 +104,7 @@ svg { display: block; flex: none; width: 1.2em; height: 1.2em; stroke: currentCo
 .platform { margin-top: .75rem; color: var(--muted); font-size: .855rem; }
 
 /* The inset screen uses the proportions and colors of RunLocal's Android Chat. */
-.phone-demo { width: min(100%, 29rem); justify-self: end; }
-.phone-stage { display: grid; place-items: center; padding: 1.25rem 1rem; border: 1px solid #d6e1d5; border-radius: 1.1rem; background: #e9f0e7; }
+.phone-demo { display: grid; place-items: center; width: min(100%, 29rem); justify-self: end; }
 .phone-frame {
   position: relative;
   width: min(100%, 16.75rem);
@@ -155,10 +154,6 @@ svg { display: block; flex: none; width: 1.2em; height: 1.2em; stroke: currentCo
 .phone-tab-selected { background: #e9eee0; color: #335942; }
 .phone-gesture { display: grid; place-items: center; min-height: .75rem; background: #fff; }
 .phone-gesture::after { content: ""; width: 3.9rem; height: .19rem; border-radius: .2rem; background: #222f27; }
-.phone-demo figcaption { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .2rem .65rem; min-height: 2.5rem; color: var(--muted); font-size: .83rem; }
-.phone-replay { align-items: center; gap: .33rem; min-height: 2.75rem; padding: .3rem .03rem; border: 0; background: transparent; color: var(--leaf); font: 680 .83rem/1.2 var(--body); cursor: pointer; }
-.phone-replay:not([hidden]) { display: inline-flex; }
-.phone-replay:hover { text-decoration: underline; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 .catalog { border-block: 1px solid var(--line); background: var(--shade); }
@@ -228,5 +223,5 @@ svg { display: block; flex: none; width: 1.2em; height: 1.2em; stroke: currentCo
 
 @media (forced-colors: active) {
   .button { border: 1px solid ButtonText; }
-  .phone-stage, .phone-frame, .phone-replay { border: 1px solid ButtonText; }
+  .phone-frame { border: 1px solid ButtonText; }
 }

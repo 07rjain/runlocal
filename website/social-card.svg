@@ -9,7 +9,6 @@
     <text x="78" y="381" font-size="76" font-weight="700">Go offline.</text>
     <text x="82" y="486" font-size="29" fill="#526057">Text, image, and voice models on Android.</text>
   </g>
-  <rect x="847" y="56" width="270" height="518" rx="20" fill="#e9f0e7"/>
   <rect x="881" y="80" width="202" height="470" rx="31" fill="#26312b"/>
   <rect x="887" y="86" width="190" height="458" rx="26" fill="#f7f8f2"/>
   <circle cx="982" cy="100" r="4" fill="#26312b"/>
