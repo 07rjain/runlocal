@@ -83,7 +83,7 @@ See [the rc8 update validation record](docs/VALIDATION-rc8.txt), [the rc7 UI val
 
 ## Website
 
-The landing page in [`website/`](website/) is plain HTML/CSS with no build step and no analytics. It is published through GitHub Pages at https://07rjain.github.io/runlocal/ by `.github/workflows/pages.yml` whenever `website/` changes on `main`. `python3 scripts/check_website.py website` validates markup, local references and in-page anchors; the Python test suite runs it. The page's small script reads only the public GitHub Releases API in the visitor's browser to show the newest stable release, and falls back to the Releases page link otherwise.
+The [RunLocal website](https://07rjain.github.io/runlocal/) includes the landing page, [installation and troubleshooting](https://07rjain.github.io/runlocal/support.html), and an [assistant guide](https://07rjain.github.io/runlocal/llms.txt). `.github/workflows/pages.yml` publishes the static files in [`website/`](website/) when they change on `main`. To deploy the same files to an authorized Vercel project, run `npx vercel deploy --cwd website --project express-squall-bwbshsl --prod`. Run `python3 scripts/check_website.py website` to check local links and markup. The landing page checks the public GitHub Releases API for the newest published APK and keeps its bundled download link available if the API is unreachable.
 
 ## Releases and update notifications
 

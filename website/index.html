@@ -3,286 +3,151 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RunLocal · Chat with AI models that run on your phone</title>
-  <meta name="description" content="RunLocal is a small, open-source Android app for chatting with text and image models that run entirely on your phone. No account, no analytics, no cloud inference.">
-  <meta name="color-scheme" content="light">
-  <meta name="theme-color" content="#294B39">
+  <title>RunLocal — Offline AI for Android</title>
+  <meta name="description" content="Download RunLocal for Android. Run compatible text, image, and voice models offline, with your prompts and replies stored on your phone.">
+  <meta name="theme-color" content="#f6f8f4">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="RunLocal · On-device AI chat for Android">
-  <meta property="og:description" content="Open-source Android app for running text and image models locally. No account, no analytics, no cloud inference.">
+  <meta property="og:title" content="RunLocal — Offline AI for Android">
+  <meta property="og:description" content="Download a model and use it offline. RunLocal runs text, image, and voice models on Android.">
   <meta property="og:image" content="https://07rjain.github.io/runlocal/social-card.svg">
-  <meta name="twitter:card" content="summary_large_image">
-  <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="canonical" href="https://07rjain.github.io/runlocal/">
+  <link rel="alternate" type="text/plain" href="llms.txt" title="RunLocal guide for AI assistants">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
+  <script src="release.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-
-  <header class="site-header">
-    <nav class="nav" aria-label="Primary">
-      <a class="brand" href="#top">
-        <img src="favicon.svg" alt="" width="32" height="32">
-        <span>RunLocal</span>
-      </a>
-      <ul class="nav-links">
-        <li><a href="#features">Features</a></li>
-        <li><a href="#models">Models</a></li>
-        <li><a href="#privacy">Privacy</a></li>
-        <li><a href="#faq">FAQ</a></li>
-        <li><a class="nav-cta" href="#download">Download</a></li>
-      </ul>
+  <header class="wrap site-header">
+    <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="31" height="31">RunLocal</a>
+    <nav aria-label="Main navigation">
+      <a href="#models">Models</a>
+      <a href="#setup">Setup</a>
+      <a href="support.html">Support</a>
     </nav>
+    <a class="source-link" href="https://github.com/07rjain/runlocal">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 16"/></svg>
+      GitHub
+    </a>
   </header>
 
   <main id="main">
-    <section class="hero" id="top">
+    <section class="wrap hero" aria-labelledby="hero-title">
       <div class="hero-copy">
-        <p class="eyebrow">
-          <span class="pill">1.0.0-rc8</span>
-          <span>Development candidate · Android 12+ · ARM64</span>
-        </p>
-        <h1>Chat with AI models that run on your phone.</h1>
-        <p class="lede">
-          RunLocal is a small native Android app for talking to text models and generating images
-          entirely on device. No account. No analytics. No prompt uploads. Your conversations stay
-          in your pocket.
-        </p>
-        <div class="actions">
-          <a class="button primary" href="#download">Get the app</a>
-          <a class="button ghost" href="https://github.com/07rjain/runlocal" rel="noopener">View source on GitHub</a>
+        <a class="release-link" id="release-link" href="https://github.com/07rjain/runlocal/releases/tag/v1.0.0-rc8">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="release-status">1.0.0-rc8 preview</span>
+          <span class="release-chevron" aria-hidden="true">›</span>
+        </a>
+        <h1 id="hero-title"><span>Download a model.</span> <span>Go offline.</span></h1>
+        <p>RunLocal runs text, image, and voice models on Android. Set up a compatible model once, then use it without a connection.</p>
+        <div class="hero-actions">
+          <a class="button" id="apk-link" href="https://github.com/07rjain/runlocal/releases/download/v1.0.0-rc8/runlocal-1.0.0-rc8-arm64.apk">
+            Download Android APK
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4"/></svg>
+          </a>
+          <a class="text-link" href="support.html#install">Install guide</a>
         </div>
-        <ul class="hero-facts" aria-label="Key facts">
-          <li><strong>Local inference</strong> with LiteRT-LM and stable-diffusion.cpp</li>
-          <li><strong>Apache-2.0</strong> open source</li>
-          <li><strong>Two tabs</strong>: Chat and Models. That's it.</li>
-        </ul>
+        <p class="platform">Android 12+ on 64-bit ARM phones</p>
       </div>
 
-      <div class="hero-visual" aria-hidden="true">
-        <div class="phone">
-          <div class="phone-screen">
-            <div class="app-bar">
-              <span class="app-bar-icon">☰</span>
-              <span class="model-chip">LFM3-1.7B · GPU</span>
-              <span class="app-bar-icon">＋</span>
+      <figure class="workflow" aria-labelledby="flow-caption">
+        <figcaption id="flow-caption">Where your data goes</figcaption>
+        <div class="model-source">
+          <span class="file-icon">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M13 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9l-6-6Z"/><path d="M13 3v6h6m-10 5h6m-6 3h4"/></svg>
+          </span>
+          <span><strong>Model download</strong><small>Hugging Face</small></span>
+          <span class="network-label">Internet required</span>
+        </div>
+        <div class="transfer">
+          <svg aria-hidden="true" viewBox="0 0 16 36" fill="none"><path d="M8 1v31m-4-4 4 4 4-4"/></svg>
+          <span>Model files copied to your phone</span>
+        </div>
+        <div class="device">
+          <div class="device-header">
+            <span class="device-name"><img src="favicon.svg" width="24" height="24" alt="">Your Android phone</span>
+            <span class="offline"><span aria-hidden="true"></span> Works offline</span>
+          </div>
+          <div class="device-body">
+            <div class="model-file">
+              <span>Installed text model</span>
+              <code>model.litertlm</code>
             </div>
-            <div class="messages">
-              <div class="msg user">Explain how a phone runs a language model offline.</div>
-              <div class="msg bot">
-                The model weights are stored on your phone and loaded into memory. Each token is
-                computed by the CPU or GPU, so nothing leaves the device. Shorter contexts and
-                quantized weights keep it fast enough to feel like a chat<span class="cursor"></span>
+            <div class="exchange">
+              <div class="prompt">
+                <span>Your prompt</span>
+                <p>Make a packing list for the overnight train.</p>
               </div>
-              <div class="metrics">
-                <span>tokens/sec</span><span>·</span><span>time to first token</span><span>·</span><span>total time</span>
+              <div class="reply">
+                <span>Example reply</span>
+                <p>Pack earplugs, a charger, water, and a layer for the morning.</p>
               </div>
-            </div>
-            <div class="composer">
-              <span class="composer-icon">＋</span>
-              <span class="composer-input">Message</span>
-              <span class="composer-icon">🎤</span>
-              <span class="composer-send">↑</span>
-            </div>
-            <div class="tabs">
-              <span class="tab active">Chat</span>
-              <span class="tab">Models</span>
             </div>
           </div>
+          <div class="device-note">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+            Prompts and replies stay on your phone.
+          </div>
         </div>
-      </div>
+      </figure>
     </section>
 
-    <section class="steps" aria-labelledby="how-title">
-      <h2 id="how-title">How it works</h2>
-      <ol class="step-list">
-        <li>
-          <span class="step-num">1</span>
-          <h3>Add a model</h3>
-          <p>In <strong>Models</strong>, paste a public Hugging Face link to a supported model, or import files you already have on the phone. RunLocal picks the right files, downloads them with pause/resume, verifies hashes and installs a private copy.</p>
-        </li>
-        <li>
-          <span class="step-num">2</span>
-          <h3>Chat</h3>
-          <p>In <strong>Chat</strong>, select the model at the top and send a prompt. Replies stream in as they are generated. Image models return pictures right in the conversation with a Save action.</p>
-        </li>
-        <li>
-          <span class="step-num">3</span>
-          <h3>Keep going offline</h3>
-          <p>Once a model is installed, nothing needs the network. Switch between saved chats, dictate with the on-device recognizer, and read replies aloud with offline voices.</p>
-        </li>
-      </ol>
-    </section>
-
-    <section class="features" id="features" aria-labelledby="features-title">
-      <h2 id="features-title">What's inside</h2>
-      <div class="feature-grid">
-        <article class="feature">
-          <h3>Local text chat</h3>
-          <p>Runs <code>.litertlm</code> models through LiteRT-LM 0.18.1 with proper chat templates and multi-turn history. Choose CPU or GPU per model; a GPU failure is reported, never silently swapped for something else.</p>
-        </article>
-        <article class="feature">
-          <h3>Image generation</h3>
-          <p>Stable Diffusion 1.x checkpoints run on the CPU through stable-diffusion.cpp in a separate process, with text-to-image and image-to-image. Generated images are saved privately until you export them.</p>
-        </article>
-        <article class="feature">
-          <h3>One-link model setup</h3>
-          <p>Paste a public Hugging Face model or supported LoRA URL. Pinned revisions, publisher hashes, storage and RAM checks, and resumable downloads are handled for you.</p>
-        </article>
-        <article class="feature">
-          <h3>Find models you already have</h3>
-          <p>Connect a folder once and RunLocal discovers compatible files, labels unsupported formats honestly, and keeps your originals untouched.</p>
-        </article>
-        <article class="feature">
-          <h3>Streaming with real numbers</h3>
-          <p>Every completed reply records decode tokens/sec, time to first token, load time and total time, taken from the engine's own benchmark counters, never guessed from word counts.</p>
-        </article>
-        <article class="feature">
-          <h3>Offline voice</h3>
-          <p>Select a downloaded Woof voice in Chat to speak what you type, or dictate with Android's on-device recognizer and read replies with offline voices. Downloaded voice inference remains experimental. <a href="https://underdog.ai">Voice by Underdog Woof</a>. There is no network speech fallback.</p>
-        </article>
-      </div>
-    </section>
-
-    <section class="models" id="models" aria-labelledby="models-title">
-      <h2 id="models-title">Model support</h2>
-      <p class="section-intro">RunLocal uses established inference engines and is honest about what they can run. File extensions alone never prove compatibility.</p>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr><th scope="col">Model type</th><th scope="col">Current support</th></tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row">Text chat</th>
-              <td>Compatible <code>.litertlm</code> containers via LiteRT-LM, CPU or GPU. Public Hugging Face setup and local import. Device-specific NPU variants are excluded.</td>
-            </tr>
-            <tr>
-              <th scope="row">Text-to-image</th>
-              <td>Complete SD 1.x checkpoints via stable-diffusion.cpp. A known quantized SD 1.5 recipe and supported adapters set up automatically.</td>
-            </tr>
-            <tr>
-              <th scope="row">Image-to-image</th>
-              <td>SD 1.x with an attached starting image.</td>
-            </tr>
-            <tr>
-              <th scope="row">MOSS Image SFT</th>
-              <td><span class="tag">Experimental</span> Component pipeline and dependency setup for supported LoRAs. Full phone generation has not been verified yet.</td>
-            </tr>
-            <tr>
-              <th scope="row">Speech</th>
-              <td>Android offline speech services, plus downloadable English Woof voices (Juno/Mira, experimental). Woof requires non-commercial use and attribution. Other speech model families need compatible runtime adapters.</td>
-            </tr>
-            <tr>
-              <th scope="row">Video, GGUF text, <code>.task</code>, ONNX, Cactus-native</th>
-              <td><span class="tag muted">Not supported</span> by the installed runtimes. Recognizable files are still listed with a compatibility label.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <p class="fine-print">Arbitrary Hugging Face repositories are not interchangeable. Gated or private downloads, multi-shard Diffusers pipelines and automatic conversion are not implemented. Model licenses apply separately.</p>
-    </section>
-
-    <section class="privacy" id="privacy" aria-labelledby="privacy-title">
-      <div class="privacy-inner">
-        <h2 id="privacy-title">Private by construction</h2>
-        <p class="section-intro">Everything you type, every image you make and every model you install stays on the device.</p>
-        <div class="privacy-cols">
+    <section class="catalog" id="models" aria-labelledby="models-title">
+      <div class="wrap catalog-layout">
+        <div class="catalog-intro">
+          <h2 id="models-title">Pick a model.</h2>
+          <p>Download a supported model or import compatible files you already have. Available memory and the phone’s chipset determine what will run.</p>
+          <a class="text-link" href="support.html#models">Model compatibility</a>
+        </div>
+        <dl class="model-list">
           <div>
-            <h3>Never leaves the phone</h3>
-            <ul class="check-list">
-              <li>Chats, drafts and history</li>
-              <li>Prompts and generated images</li>
-              <li>Model files and model identifiers</li>
-              <li>Performance metrics for your replies</li>
-            </ul>
+            <dt>Text</dt>
+            <dd>
+              <strong>Compatible LiteRT-LM models</strong>
+              <p>Stream chat replies from <code>.litertlm</code> models. Choose CPU or GPU per model.</p>
+            </dd>
           </div>
           <div>
-            <h3>Uses the network only when you ask</h3>
-            <ul class="check-list">
-              <li>Downloading a model you added from Hugging Face</li>
-              <li>Optional daily check of public GitHub release metadata for updates. It can be switched off and sends nothing about you.</li>
-            </ul>
+            <dt>Image</dt>
+            <dd>
+              <strong>Stable Diffusion 1.x</strong>
+              <p>Generate from a prompt or starting image on the CPU.</p>
+            </dd>
           </div>
-        </div>
-        <p class="fine-print">No account, no analytics SDKs, no cloud inference fallback, and no broad storage permission. The app uses Android scoped storage and never reads another app's private files.</p>
+          <div>
+            <dt>Voice</dt>
+            <dd>
+              <strong>Android speech and Underdog Woof</strong>
+              <p>Dictate with on-device recognition or read replies with an installed offline voice. Juno and Mira are experimental. <a href="https://underdog.ai">Voice by Underdog Woof</a>.</p>
+            </dd>
+          </div>
+        </dl>
       </div>
     </section>
 
-    <section class="download" id="download" aria-labelledby="download-title">
-      <h2 id="download-title">Download</h2>
-      <div class="download-grid">
-        <div class="download-card" id="release-card">
-          <h3>Latest release</h3>
-          <p id="release-status">RunLocal is currently a <strong>development release candidate (1.0.0-rc8)</strong>. A stable v1 APK has not been published yet. Check the releases page for the newest build and its checksums.</p>
-          <div class="actions">
-            <a class="button primary" id="release-link" href="https://github.com/07rjain/runlocal/releases" rel="noopener">Open GitHub Releases</a>
-          </div>
-          <ul class="requirements">
-            <li>Android 12 or newer</li>
-            <li>64-bit ARM phone (arm64-v8a)</li>
-            <li>Free storage for the models you choose, typically 1 to 5 GB each</li>
-          </ul>
+    <section class="setup" id="setup" aria-labelledby="setup-title">
+      <div class="wrap setup-layout">
+        <div>
+          <h2 id="setup-title">Your first<br> offline chat.</h2>
+          <a class="text-link" href="support.html#install">Full installation instructions</a>
         </div>
-        <div class="download-card alt">
-          <h3>Build it yourself</h3>
-          <p>The full source is on GitHub under Apache-2.0. You need JDK 21, Android SDK 36, NDK 28.2 and CMake 3.22.</p>
-<pre><code>git clone https://github.com/07rjain/runlocal.git
-cd runlocal
-./scripts/bootstrap-native.sh
-./gradlew :app:assembleDebug -Prunlocal.abis=arm64-v8a</code></pre>
-          <p class="fine-print">Independently built APKs use your own signer and cannot update someone else's installation. See <a href="https://github.com/07rjain/runlocal/blob/main/README.md#build-and-verify" rel="noopener">Build and verify</a> in the README.</p>
-        </div>
+        <ol>
+          <li><strong>Install RunLocal.</strong><p>Open the signed APK and follow Android’s installation prompt.</p></li>
+          <li><strong>Add a model.</strong><p>In Models, tap Add model. Paste a supported public Hugging Face link or import a file.</p></li>
+          <li><strong>Choose it in Chat.</strong><p>Pick the installed model at the top of Chat and send a message.</p></li>
+        </ol>
       </div>
-    </section>
-
-    <section class="faq" id="faq" aria-labelledby="faq-title">
-      <h2 id="faq-title">Questions</h2>
-      <details>
-        <summary>Does it really work offline?</summary>
-        <p>Yes. Once a model is installed, text chat, image generation, dictation and read-aloud all work in airplane mode. The network is only used when you add a model from Hugging Face, or for the optional update check that you can disable.</p>
-      </details>
-      <details>
-        <summary>Which phones can run it?</summary>
-        <p>Any 64-bit ARM phone on Android 12 or later can install it. How well a model runs depends on RAM, chipset and the model size. The app checks available memory before loading and tells you when a model is too large instead of crashing silently. Current testing targets the Motorola Edge 60 Pro; physical-device acceptance is still in progress.</p>
-      </details>
-      <details>
-        <summary>Can I use any model from Hugging Face?</summary>
-        <p>No. Text models must be <code>.litertlm</code> containers for LiteRT-LM, and image models must be complete SD 1.x checkpoints or supported adapters with a matching base. RunLocal reads public repositories, chooses the right files and verifies them, but it does not convert formats or run repository code.</p>
-      </details>
-      <details>
-        <summary>What do the speed numbers mean?</summary>
-        <p>Each finished reply shows decode tokens per second, time to first token and total time. These come from the LiteRT-LM runtime's own benchmark counters for that reply. When a model or backend does not report them, the app says "unavailable" rather than estimating.</p>
-      </details>
-      <details>
-        <summary>Is it finished?</summary>
-        <p>Not yet. The current build is a release candidate. The code compiles, unit tests pass and APKs are verified for signing and alignment, but the acceptance checklist on a physical phone is still open. Read <a href="https://github.com/07rjain/runlocal/blob/main/V1-READINESS.md" rel="noopener">V1-READINESS.md</a> for exactly what remains.</p>
-      </details>
-      <details>
-        <summary>Is it related to Cactus, Google or Hugging Face?</summary>
-        <p>No. RunLocal is an independent project. It uses the open-source LiteRT-LM runtime and stable-diffusion.cpp, and downloads public files from Hugging Face when you ask it to. Cactus was studied during prototyping but none of its code is included.</p>
-      </details>
     </section>
   </main>
 
-  <footer class="site-footer">
-    <div class="footer-inner">
-      <div class="brand small">
-        <img src="favicon.svg" alt="" width="24" height="24">
-        <span>RunLocal</span>
-      </div>
-      <ul class="footer-links">
-        <li><a href="https://github.com/07rjain/runlocal" rel="noopener">GitHub</a></li>
-        <li><a href="https://github.com/07rjain/runlocal/releases" rel="noopener">Releases</a></li>
-        <li><a href="https://github.com/07rjain/runlocal/blob/main/CHANGELOG.md" rel="noopener">Changelog</a></li>
-        <li><a href="https://github.com/07rjain/runlocal/blob/main/LICENSE" rel="noopener">Apache-2.0 license</a></li>
-        <li><a href="https://github.com/07rjain/runlocal/blob/main/THIRD_PARTY_NOTICES.md" rel="noopener">Third-party notices</a></li>
-        <li><a href="https://github.com/07rjain/runlocal/issues" rel="noopener">Report an issue</a></li>
-      </ul>
-      <p class="fine-print">Model weights are not distributed with the app and keep their own licenses. Android is a trademark of Google LLC. This site sets no cookies and runs no analytics.</p>
-    </div>
+  <footer class="wrap site-footer">
+    <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="25" height="25">RunLocal</a>
+    <nav aria-label="Resources">
+      <a href="support.html">Support</a>
+      <a href="https://github.com/07rjain/runlocal">Source code</a>
+      <a href="llms.txt">llms.txt</a>
+    </nav>
   </footer>
-
-  <script src="release.js" defer></script>
 </body>
 </html>

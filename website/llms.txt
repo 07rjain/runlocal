@@ -1,0 +1,36 @@
+# RunLocal
+
+> RunLocal is a native Android app for running compatible text, image, and voice models on the device. Install the signed ARM64 APK, add a model in Models, and select it in Chat.
+
+RunLocal targets Android 12 (API 31) or later on ARM64. Model weights download separately. Compatibility and usable model size depend on available RAM and chipset. The app is distributed through GitHub Releases. Read the release notes for the current build status and limitations.
+
+## Start here
+
+- [RunLocal website](https://07rjain.github.io/runlocal/): product overview and APK download.
+- [Signed APKs and release notes](https://github.com/07rjain/runlocal/releases): use the versioned runlocal-*-arm64.apk asset and its SHA256SUMS.
+- [Installation and troubleshooting](https://07rjain.github.io/runlocal/support.html): install and update APKs, address model failures, and configure offline speech.
+- [Usage and model compatibility](https://github.com/07rjain/runlocal#model-support): supported model formats and device requirements.
+- [Issue tracker](https://github.com/07rjain/runlocal/issues): report reproducible bugs with app version, phone model, Android version, and model details. Remove private prompts, images, and file paths.
+
+## Model support
+
+- Text: compatible .litertlm containers through LiteRT-LM with explicit CPU or GPU selection.
+- Images: complete Stable Diffusion 1.x checkpoints on CPU, plus supported adapters with matching bases. MOSS Image SFT remains experimental.
+- Speech recognition and read-aloud: Android on-device recognition and offline voices, subject to installed language packs and device support.
+- Downloaded text-to-speech: experimental Underdog Woof Juno and Mira voices. Other model families require a supported runtime adapter.
+- GGUF text, ONNX, .task, Cactus-native, and video inference are unsupported. A compatible file extension does not establish model or device compatibility.
+
+## Setup and updates
+
+1. Install the signed APK over an existing installation to preserve app data. Android checks signing continuity and asks the user to approve installation.
+2. Open Models > Add model to paste a supported public Hugging Face link, import files, or choose a supported voice model.
+3. Select the installed model in Chat. Local inference is available offline after model setup.
+4. In rc8 or later, open Chat > history > App updates. Opt in to Include release candidates (experimental) to see newer published candidates. Earlier versions require one manual update to rc8 or later.
+
+RunLocal uses the network for requested model downloads and optional GitHub release checks. Chats, prompts, generated images, and model files stay local unless the user deliberately shares or exports them. RunLocal has no account, analytics SDK, cloud inference, or network speech fallback.
+
+## Source and licenses
+
+- [Source and build instructions](https://github.com/07rjain/runlocal#build-and-verify): Apache-2.0 application code.
+- [Third-party notices](https://github.com/07rjain/runlocal/blob/main/THIRD_PARTY_NOTICES.md): bundled runtime notices.
+- [Woof license](https://github.com/07rjain/runlocal/blob/main/app/src/main/python/underdog_woof/LICENSE): Underdog Non-Commercial License 1.0. Credit: Voice by Underdog Woof.

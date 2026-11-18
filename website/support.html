@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RunLocal Support — Installation and troubleshooting</title>
+  <meta name="description" content="Get help installing RunLocal, choosing compatible models, setting up offline speech, and checking for Android updates.">
+  <meta name="theme-color" content="#f6f8f4">
+  <link rel="canonical" href="https://07rjain.github.io/runlocal/support.html">
+  <link rel="alternate" type="text/plain" href="llms.txt" title="RunLocal guide for AI assistants">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="wrap site-header">
+    <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="32" height="32">RunLocal</a>
+    <nav aria-label="Main navigation">
+      <a href="index.html#models">Models</a>
+      <a href="index.html#setup">Setup</a>
+      <a href="support.html" aria-current="page">Support</a>
+    </nav>
+    <a class="source-link" href="https://github.com/07rjain/runlocal">GitHub</a>
+  </header>
+
+  <main id="main" class="wrap support">
+    <div class="support-header">
+      <h1>RunLocal support</h1>
+      <p>Get the Android app installed, choose a model your phone can run, or report a problem.</p>
+      <a class="button" href="https://github.com/07rjain/runlocal/issues">Report an issue</a>
+    </div>
+
+    <div class="support-layout">
+      <nav class="support-nav" aria-label="On this page">
+        <a href="#install">Install the APK</a>
+        <a href="#models">Models and memory</a>
+        <a href="#voice">Offline voice</a>
+        <a href="#updates">App updates</a>
+        <a href="#report">Report a problem</a>
+      </nav>
+      <div class="support-guides">
+        <section id="install">
+          <h2>Install the APK</h2>
+          <ol>
+            <li>On an Android 12+ ARM64 phone, download the signed ARM64 APK from <a href="https://github.com/07rjain/runlocal/releases">GitHub Releases</a>.</li>
+            <li>Open the download and follow Android’s installation prompt. Android may ask you to allow installs from the browser or file manager you used.</li>
+            <li>Open <strong>Models → Add model</strong>, install a model, and select it at the top of <strong>Chat</strong>.</li>
+          </ol>
+          <p>To keep chats and models, install updates over RunLocal. If Android refuses the update, check that the APK is newer and uses the same signing certificate as your installed build.</p>
+        </section>
+
+        <section id="models">
+          <h2>Models and memory</h2>
+          <p>Use compatible <code>.litertlm</code> text containers and complete Stable Diffusion 1.x checkpoints. Supported LoRAs require their matching base. Model weights download separately, and a compatible format can still exceed your phone’s RAM.</p>
+          <p>If a model fails to load, try a smaller build. If a text model reports a GPU error, choose CPU under <strong>Chat → ＋ → CPU / GPU processing</strong> and retry. See the <a href="https://github.com/07rjain/runlocal#model-support">compatibility guide</a> for experimental models and unsupported formats.</p>
+        </section>
+
+        <section id="voice">
+          <h2>Offline voice</h2>
+          <p>Android dictation and read-aloud depend on the on-device recognizer and offline voice packs available on your phone. In Chat, the microphone dictates and the speaker reads a text reply aloud.</p>
+          <p>For experimental Juno and Mira voices, open <strong>Models → Add model → Supported voice models</strong>, download Woof, and choose a voice in Chat. <a href="https://underdog.ai">Voice by Underdog Woof</a>. Woof has a separate <a href="https://github.com/07rjain/runlocal/blob/main/app/src/main/python/underdog_woof/LICENSE">non-commercial license</a>.</p>
+        </section>
+
+        <section id="updates">
+          <h2>App updates</h2>
+          <p>On rc8 or later, open <strong>Chat → ☰ → App updates</strong>. Enable <strong>Include release candidates (experimental)</strong> to see prereleases, then tap <strong>Check now</strong>. You’ll see an update when a newer build is published in your selected channel.</p>
+          <p>Rc7 and earlier need one manual install of rc8 or later to discover candidates. Android asks you to approve each APK install.</p>
+        </section>
+
+        <section id="report">
+          <h2>Report a problem</h2>
+          <p><a href="https://github.com/07rjain/runlocal/issues">Search or open a GitHub issue</a>. Include your RunLocal version, Android version, phone model, and steps to reproduce. For model issues, add the public model link or format and CPU/GPU selection. Remove private prompts, images, and file paths from anything you include.</p>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer class="wrap site-footer">
+    <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="26" height="26">RunLocal</a>
+    <nav aria-label="Resources">
+      <a href="index.html">Home</a>
+      <a href="https://github.com/07rjain/runlocal">Source code</a>
+      <a href="llms.txt">llms.txt</a>
+    </nav>
+  </footer>
+</body>
+</html>
