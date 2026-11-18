@@ -15,6 +15,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
   <script src="release.js" defer></script>
+  <script src="dot-product.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -71,8 +72,11 @@
           </div>
           <div class="device-body">
             <div class="model-file">
-              <span>Installed text model</span>
-              <code>model.litertlm</code>
+              <div class="model-file-label">
+                <span>Installed text model</span>
+                <code>model.litertlm</code>
+              </div>
+              <canvas id="dot-product" width="524" height="224" aria-hidden="true" hidden></canvas>
             </div>
             <div class="exchange">
               <div class="prompt">

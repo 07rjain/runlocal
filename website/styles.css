@@ -140,8 +140,10 @@ svg { display: block; flex: none; width: 1.2em; height: 1.2em; stroke: currentCo
 .device-name { display: flex; align-items: center; gap: .55rem; font: 730 .975rem/1.2 var(--heading); }
 .offline { display: flex; align-items: center; gap: .32rem; color: #35553e; font-size: .76rem; }
 .device-body { padding: .85rem .9rem .95rem; }
-.model-file { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .15rem .55rem; padding-bottom: .75rem; border-bottom: 1px solid var(--line); color: var(--muted); font-size: .8rem; }
+.model-file { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding-bottom: .75rem; border-bottom: 1px solid var(--line); color: var(--muted); font-size: .8rem; }
+.model-file-label { display: grid; justify-items: start; gap: .3rem; }
 .model-file code { padding: .12rem .35rem; border-radius: .24rem; background: var(--shade); color: #2c4937; font-size: .82rem; }
+.model-file canvas { width: min(60%, 15.5rem); min-width: 0; height: auto; border: 1px solid var(--line); border-radius: .35rem; }
 .exchange { display: grid; gap: .65rem; padding-top: .78rem; }
 .prompt, .reply { padding: .56rem .66rem; border-radius: .45rem; font-size: .93rem; line-height: 1.44; }
 .prompt { width: fit-content; max-width: 94%; justify-self: end; border: 1px solid #dce4d9; background: #f3f6f1; }
@@ -219,4 +221,5 @@ svg { display: block; flex: none; width: 1.2em; height: 1.2em; stroke: currentCo
 
 @media (forced-colors: active) {
   .button { border: 1px solid ButtonText; }
+  .model-file canvas { display: none; }
 }
