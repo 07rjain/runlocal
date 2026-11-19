@@ -2,11 +2,11 @@
 
 A small native Android app for chatting with models on your phone. Two tabs: **Chat** and **Models**. No account, analytics, prompt uploads, or cloud inference. Internet is used for requested Hugging Face model setup and optional daily GitHub release checks in configured builds; downloaded models run locally afterwards.
 
-**Current candidate: 1.0.0-rc8** · Android 12+ · ARM64 phones. This is a development release candidate, pending physical-device acceptance testing. Application code is Apache-2.0; the bundled Woof runtime has a separate non-commercial license; a stable v1 APK release has not been published.
+**Current candidate: 1.0.0-rc9** · Android 12+ · ARM64 phones. This is a development release candidate, pending physical-device acceptance testing. Application code is Apache-2.0; the bundled Woof runtime has a separate non-commercial license; a stable v1 APK release has not been published.
 
 ## Use it
 
-This repository contains source code; APKs are distributed separately through [GitHub Releases](https://github.com/07rjain/runlocal/releases) when published. For a local development build, install `dist/runlocal-1.0.0-rc8-arm64.apk` after running the build and packaging steps below. Model weights are downloaded separately. The APK retains the existing app ID, signing certificate, and a higher version code so it can update earlier development builds without uninstalling them.
+This repository contains source code; APKs are distributed separately through [GitHub Releases](https://github.com/07rjain/runlocal/releases) when published. For a local development build, install `dist/runlocal-1.0.0-rc9-arm64.apk` after running the build and packaging steps below. Model weights are downloaded separately. The official APK retains the existing app ID and signing certificate with a higher version code, so it can update earlier official builds without uninstalling them.
 
 1. **Models** is a single installed-model library with All, Text, Voice and Image filters. Tap **Add model** to paste a public Hugging Face model or supported LoRA URL, import files, or connect a folder. Each model has **Use in Chat** and a **⋮** management menu. Required files are selected, downloaded, verified, and installed automatically. This can use mobile data. Downloads have pause/resume controls and storage/RAM checks.
 2. In **Chat**, select an installed text, voice or image model at the top and send a prompt. Text models hold a conversation; voice models speak what you type, with replay in the saved conversation. Image models return images in the chat, with a Save image action. Image prompts are independent generations; they do not automatically carry forward previous images.
@@ -34,7 +34,7 @@ Completed text replies include decode tokens/sec, runtime time to first token (T
 | MOSS Image SFT | Experimental component pipeline and automatic dependency setup for supported LoRAs. Full phone generation has not been verified. |
 | Speech-to-text | Installed Android on-device speech recognition; no network fallback. |
 | Text-to-speech | Android installed offline voices, plus an extensible downloaded-model system. Underdog Woof (English Juno/Mira) is the first supported adapter; Android inference is experimental pending phone acceptance. |
-| OCR (unreleased) | Experimental Cactus Mirage for printed Latin-script text on ARM64. Install via **Models → Add model**, then use **Chat → ＋ → Extract text from an image**. See [OCR setup and validation](docs/MIRAGE-OCR.md). |
+| OCR | Experimental Cactus Mirage for printed Latin-script text on ARM64. Install via **Models → Add model**, then use **Chat → ＋ → Extract text from an image**. See [OCR setup and validation](docs/MIRAGE-OCR.md). |
 | Video, GGUF text, arbitrary Cactus bundles, `.task`, ONNX | Not supported by the installed runtimes. Recognizable local files can still be listed with compatibility labels. |
 
 Arbitrary Hugging Face repositories are not interchangeable. Unsupported architectures, gated/private downloads, multi-shard Diffusers pipelines, and automatic conversion are not implemented. Only reviewed, bundled runtime code executes; downloaded repositories cannot supply executable Python code. Arbitrary speech formats require a compatible adapter and are rejected. Model licenses and access terms apply separately.

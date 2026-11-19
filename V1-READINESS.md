@@ -1,6 +1,6 @@
 # Version 1 readiness
 
-The current deliverable is **1.0.0-rc8**, a development candidate for review. The selected public repository is https://github.com/07rjain/runlocal; rc4 was published as an experimental prerelease, rc5 fixes a missing permission in startup update scheduling, rc6 adds extensible offline speech with the first Woof adapter, rc7 unifies model management and adds voice conversations in Chat, and rc8 adds opt-in candidate updates. Physical-device acceptance remains pending.
+The current deliverable is **1.0.0-rc9**, a development candidate with experimental offline Mirage OCR. Rc8 added opt-in candidate updates, and rc7 unified model management and added voice conversations in Chat. Physical-device acceptance remains pending.
 
 ## Implemented for this candidate
 

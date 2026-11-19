@@ -18,8 +18,8 @@ android {
         applicationId = "app.pocket.local"
         minSdk = 31
         targetSdk = 36
-        versionCode = 14
-        versionName = "1.0.0-rc8"
+        versionCode = 15
+        versionName = "1.0.0-rc9"
         ndk { abiFilters += runlocalAbis }
         buildConfigField("String", "RELEASE_REPOSITORY", "\"$releaseRepository\"")
         externalNativeBuild { cmake { arguments += listOf("-DANDROID_STL=c++_shared"); targets += listOf("pocket_diffusion", "pocket_ocr") } }

@@ -1,8 +1,8 @@
 # Mirage OCR in RunLocal
 
-This is an experimental feature in the unreleased Android ARM64 build. The published rc8 APK does not contain it.
+Mirage OCR is experimental and starts with the Android ARM64 rc9 candidate.
 
-1. Install the development APK on an Android 12+ ARM64 phone. The standalone test APK keeps the app ID, version code and signer used by the public rc8 APK.
+1. Install the signed candidate APK from [GitHub Releases](https://github.com/07rjain/runlocal/releases) on an Android 12+ ARM64 phone. Rc9 keeps the app ID and signer used by the public rc8 APK and increases the version code. Install over rc8 to keep your data.
 2. Open **Models → Add model → Offline OCR → Cactus Mirage** and tap **Download Mirage**. You can also paste the public [Mirage repository URL](https://huggingface.co/Cactus-Compute/mirage). The download is 21.6 MB and can resume after interruption.
 3. Go to **Chat → ＋ → Extract text from an image → Choose an image**. The model processes the selected image locally. Review the transcript, then copy it or insert it into the chat draft. Inserting text does not send a message.
 4. Use **Models → OCR** to find the installed Mirage model. Its management view can remove RunLocal's copy without deleting chat drafts or source photos.
