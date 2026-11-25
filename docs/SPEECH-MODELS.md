@@ -1,11 +1,11 @@
 # Offline speech models and phone testing
 
-RunLocal rc7 uses one model library and one Chat interface for text, voice and image models. Underdog Woof is the first supported downloaded voice family, with English Juno and Mira voices. Other architectures need compatible adapters; file extensions alone do not establish support.
+RunLocal uses one model library and one Chat interface for text, voice and image models. The Underdog Woof recipe includes the English Juno and Mira voices. See the [catalog guide](MODEL-CATALOG.md) for other supported voice families.
 
 ## Use a voice in Chat
 
-1. Install `dist/runlocal-1.0.0-rc8-arm64.apk` over the previous candidate. Keep the existing app installed so chats and models survive. This remains a development candidate.
-2. Open **Models → Add model → Supported voice models → Underdog Woof**. Read the license summary and tap **Download model**. The 40.6 MB weights download separately and may use mobile data. Keep RunLocal open; paused downloads can be resumed from this panel.
+1. Install the rc10 ARM64 candidate over the previous signed candidate to keep chats and models.
+2. Open **Models → Add model → Speak text → Underdog Woof**. Read the license summary and tap **Download**. The 40.6 MB weights download separately and may use mobile data. Keep RunLocal open during download. You can resume a paused download from this panel.
 3. Woof appears alongside installed text/image models in the library. Tap **Use in Chat**, then choose **Juno** or **Mira**. You can also choose either voice from the model picker at the top of Chat.
 4. Type English text into the normal message bar and tap **play**. RunLocal speaks it and saves the text in this voice conversation. Speech is limited to 2,000 characters per reading.
 5. Tap **Play again** on the reply to hear it again, or **Text** to view the spoken text. Audio is generated again for replay; temporary WAV files are not kept as permanent attachments. The conversation retains its model and voice. Selecting a different voice after messages exist starts a separate conversation.
@@ -15,11 +15,23 @@ RunLocal rc7 uses one model library and one Chat interface for text, voice and i
 
 Voice by [Underdog Woof](https://underdog.ai) remains visibly linked in the composer when using Woof. The license permits non-commercial use with credit; commercial use needs separate permission.
 
+## Try Kitten TTS 2 Pico
+
+In the development build, open **Models → Add model → Speak text → Kitten TTS 2 Pico**. Download the 9.5 MB English INT4 recipe, select Eleanor, Edith, Otis or Frank, and send **“Hello there. This is a test of the Kitten voice.”** Replay the result in airplane mode after the download completes.
+
+The edition uses preset English voices and a CMUdict-based pronunciation dictionary. It spells out unknown words and reads digits individually. KittenML’s reference English frontend also has Misaki and a neural fallback, so pronunciations can differ. Voice cloning and the larger Kitten TTS 2 edition are outside this adapter. The Linux JVM ran RunLocal’s adapter with the pinned files and produced non-silent 24 kHz mono PCM for all four voices. Android playback needs a phone test. [Kitten TTS 2 Pico model card](https://huggingface.co/KittenML/kitten-tts-2-pico/tree/a5632deac7d92f6178db814d933eba746a97f2dc)
+
+## BlueTTS 3 research
+
+The publisher calls this release **BlueV3**. Its INT8 preset-voice path uses a duration predictor, text encoder, vector estimator, and vocoder. Those four ONNX graphs total about 197 MB before the voice style and pronunciation data. BlueTTS’s upstream Python runtime produced non-silent 44.1 kHz audio with the pinned English files and the Noa voice on Linux, with networking blocked during inference. [BlueV3 model card](https://huggingface.co/notmax123/BlueV3-onnx/tree/8410bbfe508a9b84a967324ecf3caf5f655326c9)
+
+Rc10 ships a portable Rust build of the polyg2p English frontend and an experimental BlueV3 Noa preset in **Models → Add model → Speak text**. The bundle includes separate OpenRAIL-M vocoder terms and CC BY 4.0 voice styles. [Frontend spec](https://huggingface.co/notmax123/BlueV3-onnx/blob/8410bbfe508a9b84a967324ecf3caf5f655326c9/frontend/FRONTEND.md) · [Bundle license inventory](https://huggingface.co/notmax123/BlueV3-onnx/blob/8410bbfe508a9b84a967324ecf3caf5f655326c9/LICENSES.md)
+
 ## Phone acceptance
 
 Repeat both voices in airplane mode with Wi-Fi off. Test send/replay, model/voice selection after restart, switching chats during synthesis, stopping before playback, backgrounding, audio focus interruptions, denied microphone permission, paused-download resume and model removal/reinstallation. Verify previous text/image chats and downloaded models survive the update. Check narrow screens, a large font setting, keyboard open, and long model names.
 
-Record the phone model/Android version, voice, displayed durations, whether airplane-mode playback worked, and the complete error if it failed. Speech-to-text depends on the phone's installed offline recognition service and language pack; RunLocal does not download a separate STT model or fall back to online recognition.
+Record the phone model, Android version, voice, displayed durations, whether airplane-mode playback worked, and the complete error if it failed. Microphone dictation depends on Android’s installed offline service and language pack. Downloaded Whisper and Zipformer models transcribe short mono 16-bit PCM WAV files through **Chat → ＋ → Transcribe an audio file**.
 
 Woof's download size differs from its runtime RAM requirement. The publisher reports roughly 402–601 MB peak for its desktop NumPy implementation. RunLocal checks a conservative free-memory budget and releases its loaded native text engine on the serial worker before starting downloaded speech. Other apps and image models can still consume RAM.
 
@@ -32,7 +44,7 @@ Woof's download size differs from its runtime RAM requirement. The publisher rep
 - `SpeechService` runs one synthesis at a time in `:speech`, bounds text size, checks installation/voice/memory, handles audio focus, plays local audio and cleans up temporary files. `SpeechClient` routes replies by request ID and stops/unbinds when the Activity leaves the foreground. No prompts/audio are sent to a remote endpoint.
 - Woof's adapter starts Chaquopy/Python 3.13 lazily in the speech process, with single-threaded NumPy/OpenBLAS. The reviewed reference runtime is bundled in the APK; only hash-verified weights download at runtime. Cancellation checks were added around inference steps. Model objects are released after each synthesis; Python/native libraries may remain resident in the bound/cached speech process.
 
-For a new family: review its code/license, add the backend and manifest, include its notices, verify both normal and interrupted setup, test cancellation and process death, run offline synthesis with the exact weights, check all native libraries for 16 KB alignment, then record Android acceptance. Existing setup, selection and playback UI can be reused. There is no arbitrary remote-code execution or automatic model conversion.
+For a compatible export, follow the [catalog guide](MODEL-CATALOG.md). For a new family, follow the [model adapter policy](../AGENTS.md) and test offline synthesis, interrupted downloads, cancellation and process death with the exact files.
 
 ## License and build
 

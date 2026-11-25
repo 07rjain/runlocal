@@ -15,8 +15,8 @@ object ModelInspector {
     fun validate(file: File, displayName: String, role: ModelRole) {
         val extension = displayName.substringAfterLast('.', "").lowercase()
         require(file.length() >= 8) { "This file is empty or incomplete." }
-        if (role == ModelRole.TEXT) {
-            require(extension == "litertlm") { "Choose a compatible .litertlm text model." }
+        if (role == ModelRole.TEXT && extension != "gguf") {
+            require(extension == "litertlm") { "Choose a compatible LiteRT-LM or GGUF text model." }
             val header = ByteArray(8)
             file.inputStream().use { require(it.read(header) == 8 && String(header, Charsets.US_ASCII) == "LITERTLM") { "This is not a LiteRT-LM container." } }
             return

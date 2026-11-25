@@ -3,8 +3,8 @@ package app.pocket.local
 /** A voice is part of the chat's model identity, so replay never substitutes another voice. */
 fun speechChatKey(model: SpeechModelSpec, voice: SpeechVoice) = "speech:${model.id}:${voice.id}"
 
-fun speechChatSelection(key: String): Pair<SpeechModelSpec, SpeechVoice>? =
-    SpeechModelCatalog.models.firstNotNullOfOrNull { model ->
+fun speechChatSelection(key: String, recipes: List<SpeechModelSpec> = SpeechModelCatalog.models): Pair<SpeechModelSpec, SpeechVoice>? =
+    recipes.firstNotNullOfOrNull { model ->
         model.voices.firstOrNull { speechChatKey(model, it) == key }?.let { model to it }
     }
 

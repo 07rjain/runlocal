@@ -15,6 +15,8 @@ internal object MirageModel : PinnedDownload {
     override val size = 21_611_043L
     override val digest = "4249a0f7515272ff76b9414bec17d7e7daf84b15b66c7fb4f17fce1e66f9f237"
     override val hashType = "sha256"
+    const val memoryMinimum = 256L * MIB
+    const val storageReserve = 64L * MIB
     val supportedAbi get() = Build.SUPPORTED_ABIS.firstOrNull() == "arm64-v8a"
 
     override fun validate() {
@@ -32,6 +34,7 @@ internal object MirageModel : PinnedDownload {
     private fun partial(context: Context) = File(file(context).path + ".part")
     fun installed(context: Context) = file(context).let { it.isFile && it.length() == size }
     fun hasPartial(context: Context) = partial(context).isFile
+    fun remainingDownloadBytes(context: Context) = (size - partial(context).length()).coerceAtLeast(0)
 
     fun install(context: Context, cancelled: () -> Boolean, progress: (Long, Boolean) -> Unit) {
         check(supportedAbi) { "Mirage requires an ARM64 Android build." }
@@ -41,7 +44,7 @@ internal object MirageModel : PinnedDownload {
         val model = file(context)
         val pending = ModelFileDownloader().download(this, partial(context), checkSpace = { needed ->
             checkCancelled()
-            require(StatFs(context.filesDir.path).availableBytes > needed + 64L * 1024 * 1024) {
+            require(StatFs(context.filesDir.path).availableBytes > needed + storageReserve) {
                 "Free more space before downloading Mirage."
             }
         }, progress = { done, verifying ->

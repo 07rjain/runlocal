@@ -8,6 +8,7 @@ import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.SystemClock
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.Executors
@@ -49,11 +50,12 @@ class ImageGenerationService : Service(), NativeProgressListener {
         job.put("state", "running").put("message", "Loading model components on your phone…")
         store.writeJob(job); signal()
         worker.execute {
+            val startedAt = SystemClock.elapsedRealtime()
             val result = runCatching {
                 val output = File(job.getString("output"))
                 require(output.parentFile?.canonicalFile == store.outputs.canonicalFile) { "Invalid output path." }
                 val family = job.getString("family")
-                val input = if (family == "sd15") job.optString("input") else ""
+                val input = if (family != "moss") job.optString("input") else ""
                 val prepared = if (input.isNotEmpty()) prepareInput(input, job.getInt("width"), job.getInt("height")) else ""
                 try {
                     NativeDiffusion.generate(arrayOf(family, job.optString("CHECKPOINT"), job.optString("DIFFUSION"),
@@ -65,7 +67,13 @@ class ImageGenerationService : Service(), NativeProgressListener {
                 } finally { if (prepared.isNotEmpty()) File(prepared).delete() }
             }
             synchronized(this) {
-                result.onSuccess { job.put("state", "complete").put("message", "Generated locally. Ready to save.") }
+                result.onSuccess {
+                    job.put("state", "complete").put("message", "Generated locally. Ready to save.")
+                    val checkpointKey = File(job.optString("CHECKPOINT")).nameWithoutExtension
+                    if (ModelTimings.isCatalogFile(ModelRole.CHECKPOINT, checkpointKey) && job.optString("LORA").isBlank()) {
+                        ModelTimings(this).record(checkpointKey, SystemClock.elapsedRealtime() - startedAt)
+                    }
+                }
                     .onFailure { error ->
                         job.put("state", "error").put("message", error.message ?: "The native runtime could not run these weights.")
                         File(job.optString("output")).delete()

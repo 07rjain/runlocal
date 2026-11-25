@@ -30,6 +30,10 @@ internal class LiteRtTextSessionFactory(private val cachePath: String, private v
         availableMemory?.invoke()?.let { available ->
             require(model.size <= available * .65) { "Not enough memory to load this model: ${available / (1024 * 1024)} MB free, ${model.size / (1024 * 1024)} MB of weights. Close other apps or choose a smaller model." }
         }
+        if (model.file.extension.equals("gguf", ignoreCase = true)) {
+            require(backend == ProcessingBackend.CPU) { "GGUF chat is available on CPU. Select CPU only for this model." }
+            return LlamaTextSession(model, history)
+        }
         @OptIn(ExperimentalApi::class)
         ExperimentalFlags.enableBenchmark = true
         val engine = Engine(textEngineConfig(model, backend, cachePath))

@@ -1,6 +1,6 @@
 # Version 1 readiness
 
-The current deliverable is **1.0.0-rc9**, a development candidate with experimental offline Mirage OCR. Rc8 added opt-in candidate updates, and rc7 unified model management and added voice conversations in Chat. Physical-device acceptance remains pending.
+The current deliverable is **1.0.0-rc10**, a development candidate with a GitHub-managed model catalog and experimental GGUF chat, TTS, WAV transcription, OCR language packs and SDXL. Physical-device acceptance remains pending.
 
 ## Implemented for this candidate
 
@@ -47,4 +47,4 @@ The current deliverable is **1.0.0-rc9**, a development candidate with experimen
 - [ ] Configure signing and review APK release contents before publication.
 - [ ] Record physical-device acceptance results and resolve blockers, then promote the candidate to a stable v1 version/tag.
 
-Video generation, arbitrary speech-model import, GGUF text, general Cactus model execution, authenticated downloads, and unrestricted arbitrary model conversion remain future work. Mirage OCR uses a single reviewed Cactus recipe and still needs the [Android phone acceptance test](docs/MIRAGE-OCR.md).
+Video generation, arbitrary speech-model import, general Cactus model execution, authenticated downloads, and unrestricted model conversion remain future work. Mirage OCR uses a single reviewed Cactus recipe and still needs the [Android phone acceptance test](docs/MIRAGE-OCR.md).

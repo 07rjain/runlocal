@@ -4,6 +4,18 @@ Versions are ordered newest first. Earlier entries reconstruct the local develop
 
 ## [Unreleased]
 
+## [1.0.0-rc10] - 2026-11-25
+
+### Added
+- A task-based model catalog for chat, OCR, speech and image generation, with direct downloads, device fit estimates and measured local timings.
+- Model catalog edits published on GitHub appear independently of APK releases. The app keeps a valid offline copy, and installed models and downloads survive listing removals.
+- Experimental Kitten TTS 2 Pico English voices in **Models → Add model → Speak text**, using pinned weights and CPU ONNX Runtime in RunLocal’s speech process.
+- Versioned catalog adapters for GGUF chat, SDXL Base images, BlueV3/Kokoro/Piper speech, Whisper/Zipformer WAV transcription, and Tesseract OCR language packs.
+- Catalog recipes can pin multiple files and speaker IDs. Installed recipes retain their identity and metadata when GitHub listings change.
+
+### Known limits
+- The new adapters are experimental. Physical-device acceptance and SDXL generation tests are pending. Piper needs a compatible catalog recipe with a pinned pronunciation lexicon.
+
 ## [1.0.0-rc9] - 2026-11-19
 
 ### Added

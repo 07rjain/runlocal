@@ -11,13 +11,20 @@ import java.util.UUID
 
 data class ImageAsset(val id: String, val name: String, val role: ModelRole, val file: File, val remoteKey: String = "")
 
+internal val IMAGE_PROFILES = listOf("sd15", "sdxl", "moss")
+internal fun imageProfileTitle(profile: String) = when (profile) {
+    "moss" -> "MOSS Image SFT"
+    "sdxl" -> "Stable Diffusion XL"
+    else -> "Stable Diffusion 1.x"
+}
+
 class ImageStore(private val context: Context) {
     private val directory = File(context.filesDir, "image-models").apply { mkdirs() }
     val outputs = File(context.filesDir, "generated").apply { mkdirs() }
     private val prefs = context.getSharedPreferences("image-models", Context.MODE_PRIVATE)
     var family: String
         get() = prefs.getString("family", "sd15") ?: "sd15"
-        set(value) { require(value in listOf("sd15", "moss")); prefs.edit().putString("family", value).remove("activeModel").remove("activeTrigger").apply() }
+        set(value) { require(value in IMAGE_PROFILES); prefs.edit().putString("family", value).remove("activeModel").remove("activeTrigger").apply() }
     val activeModel: String get() = prefs.getString("activeModel", "").orEmpty()
     val activeTrigger: String get() = prefs.getString("activeTrigger", "").orEmpty()
 
@@ -81,15 +88,15 @@ class ImageStore(private val context: Context) {
     }
 
     fun delete(asset: ImageAsset) {
-        val profiles = listOf("sd15", "moss").filter { assigned(asset.role, it)?.id == asset.id }
+        val profiles = IMAGE_PROFILES.filter { assigned(asset.role, it)?.id == asset.id }
         check(asset.file.delete()) { "Could not delete the app's copy." }
         File(directory, "${asset.id}.meta").delete()
         profiles.forEach { assign(asset.role, null, it) }
     }
     fun roles(profile: String = family) = if (profile == "moss") listOf(ModelRole.DIFFUSION, ModelRole.ENCODER, ModelRole.VAE, ModelRole.TOKENIZER) else listOf(ModelRole.CHECKPOINT)
-    fun configuredProfiles() = listOf("sd15", "moss").filter { profile -> roles(profile).all { assigned(it, profile) != null } }
+    fun configuredProfiles() = IMAGE_PROFILES.filter { profile -> roles(profile).all { assigned(it, profile) != null } }
     fun profileLabel(profile: String) = (if (profile == family) activeModel else prefs.getString("${profile}_savedLabel", "").orEmpty())
-        .ifEmpty { if (profile == "moss") "MOSS Image SFT" else "Stable Diffusion 1.x" }
+        .ifEmpty { imageProfileTitle(profile) }
     fun selectLocalProfile(profile: String) {
         require(profile in configuredProfiles()) { "Some files for this image model are missing." }
         if (profile == family) return
@@ -141,7 +148,7 @@ class ImageStore(private val context: Context) {
         val id = state.optString("id")
         if (state.optString("state") != "ready" || id.isEmpty() || prefs.getString("appliedSetup", "") == id) return false
         val plan = ModelSetupPlan.fromJson(state.getString("plan"))
-        if (plan.family == "text") {
+        if (plan.isText) {
             val texts = ModelStore(context)
             val model = texts.cached(plan.files.single()) ?: error("The downloaded text model was removed. Add it again.")
             texts.selectedId = model.id

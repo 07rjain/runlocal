@@ -6,6 +6,7 @@ Read README.md, CHANGELOG.md and V1-READINESS.md before changing release behavio
 
 - Kotlin 2.3.20, R8 9.1.31 override (LiteRT dependency Kotlin 2.4 metadata), Android Gradle Plugin 8.13.2, Gradle wrapper 8.13; Java 21 build/test runtime, Java 17 bytecode target. Android 12/API 31 minimum, target/compile API 36. Native Android Views; no Compose/React Native migration is implied.
 - LiteRT-LM Android 0.18.1 for text; CPU or GPU selected per model. JNI stable-diffusion.cpp + GGML for images, CPU-only. Exact native revisions: native-deps.lock; run scripts/bootstrap-native.sh. NDK 28.2.13676358, CMake 3.22.1.
+- llama.cpp provides CPU GGUF chat with a separate pinned GGML build. Sherpa-ONNX provides downloaded voice and transcription. Tesseract and Mirage provide offline OCR. BlueV3's pronunciation frontend builds with Rust and the Android toolchain.
 - MainActivity: view construction/lifecycle, chat coordination, offline Android speech. LocalEngine/LiteRtTextSession: serial native lifecycle and typed model conversations. ChatRepository: atomic per-chat files and idempotent reply completion. ModelStore/ImageStore: private model copies and persisted setup/job state. PhoneModelLibrary/Scanner: SAF grants, bounded discovery, preserved originals. Download/image foreground services run in separate processes.
 - ReleaseFeed: strict same-repository GitHub release parsing, stable by default with explicit candidate opt-in. UpdateNotifications: optional daily JobScheduler checks and notification. Never send chats, prompts, images, model files or identifiers to an update endpoint.
 
@@ -19,6 +20,13 @@ Read README.md, CHANGELOG.md and V1-READINESS.md before changing release behavio
 - No model weights, secrets, signing keys, build caches, private chats or generated images in source control. Put APKs in release assets, not git. Inspect staged files before any publication.
 - Text speed/token counts must come from native benchmark data, never word/character/chunk estimates. Keep model load, runtime TTFT and first-text arrival distinct. Streaming callbacks update only their originating chat; native lifecycle remains serial.
 - Preserve explicit processor choice and offline speech; no network recognition fallback. Automatic update checks are disclosed, can be disabled, and only read public release metadata.
+
+## Model adapter policy
+
+- GitHub's catalog at `app/src/main/assets/model-catalog.json` selects a bundled, versioned adapter and supplies pinned data files, language settings and voice IDs. The app verifies files before inference and keeps each installed recipe available independently of the live list.
+- Use the adapter IDs, file roles and publishing steps in [the catalog guide](docs/MODEL-CATALOG.md). Confirm the exact model export, runtime contract, license and attribution. Container extensions alone cannot establish compatibility. Keep executable code and native libraries inside reviewed app builds.
+- Add an adapter ID for a new inference contract. Include a pinned reference model, runtime and ABI limits, validation tests and offline inference checks. Use existing Chat and Models entry points, serial inference ownership, and the app's privacy guarantees. Preserve existing installed model identities and history.
+- Run catalog validation before editing GitHub `main`. An Android compile or host inference pass supports an experimental listing. Record successful runs on the target phone before claiming phone acceptance.
 
 ## Validation and releases
 

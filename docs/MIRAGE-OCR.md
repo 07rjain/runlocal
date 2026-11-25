@@ -3,11 +3,11 @@
 Mirage OCR is experimental and starts with the Android ARM64 rc9 candidate.
 
 1. Install the signed candidate APK from [GitHub Releases](https://github.com/07rjain/runlocal/releases) on an Android 12+ ARM64 phone. Rc9 keeps the app ID and signer used by the public rc8 APK and increases the version code. Install over rc8 to keep your data.
-2. Open **Models → Add model → Offline OCR → Cactus Mirage** and tap **Download Mirage**. You can also paste the public [Mirage repository URL](https://huggingface.co/Cactus-Compute/mirage). The download is 21.6 MB and can resume after interruption.
+2. On rc9, open **Models → Add model → Offline OCR → Cactus Mirage** and tap **Download Mirage**. In the development build, choose **Models → Add model → Read text from an image → Download**. You can also paste the public [Mirage repository URL](https://huggingface.co/Cactus-Compute/mirage). The download is 21.6 MB and can resume after interruption.
 3. Go to **Chat → ＋ → Extract text from an image → Choose an image**. The model processes the selected image locally. Review the transcript, then copy it or insert it into the chat draft. Inserting text does not send a message.
 4. Use **Models → OCR** to find the installed Mirage model. Its management view can remove RunLocal's copy without deleting chat drafts or source photos.
 
-Mirage reads printed Latin-script text. Small text, complex layouts and accents can be wrong. RunLocal accepts still images under 24 MB, scales the long edge to at most 1,600 pixels, and requests text regions only. It groups detected fragments by line. Dense documents, columns, handwriting and other scripts have not been validated. Android x86_64 builds do not offer OCR.
+Mirage reads printed Latin-script text. Small text, complex layouts and accents can be wrong. RunLocal accepts still images under 24 MB, scales the long edge to at most 1,600 pixels, and requests text regions only. It groups detected fragments by line. Dense documents, columns, handwriting and other scripts have not been validated. Mirage is ARM64-only. Rc10 also offers Tesseract language packs through the [model catalog](MODEL-CATALOG.md).
 
 ## Runtime and verification
 

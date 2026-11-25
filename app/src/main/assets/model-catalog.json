@@ -1,0 +1,321 @@
+{
+  "schemaVersion": 1,
+  "models": [
+    {
+      "id": "qwen3-0.6b",
+      "runtime": "litert-lm",
+      "title": "Qwen3 0.6B",
+      "summary": "Small download for short questions, rewriting and summaries.",
+      "license": "Apache 2.0",
+      "repo": "litert-community/Qwen3-0.6B-int4",
+      "revision": "56621f0115eba5781051ef9714c06e16e6d40c0b",
+      "file": "qwen3_0.6b_nothink_q4_block32_ekv1280.litertlm",
+      "bytes": 347251840,
+      "sha256": "2df6821ec12702dafd33915e7a1a1adc7c4b053f3672fd9555dfaf3a114c4139"
+    },
+    {
+      "id": "lfm3-1.7b",
+      "runtime": "litert-lm",
+      "title": "LFM3 1.7B",
+      "summary": "A larger chat model for multilingual writing. Answers can be inconsistent on math questions.",
+      "license": "Liquid AI LFM License 1.0",
+      "gpu": true,
+      "experimental": true,
+      "repo": "litert-community/LFM3-1.7B-LiteRT",
+      "revision": "dae488ed3cab932b61556c1a579d988a4e6dc799",
+      "file": "LFM3-1.7B_mixed_int4_ekv2048.litertlm",
+      "bytes": 1441620928,
+      "sha256": "0400d8ffdb00e4bbe1209120e2c7baf05322a8c900839b0a94cc28f599011196"
+    },
+    {
+      "id": "mirage",
+      "runtime": "builtin"
+    },
+    {
+      "id": "underdog-woof-v1",
+      "runtime": "builtin"
+    },
+    {
+      "id": "kitten-2-pico-en-int4",
+      "runtime": "builtin",
+      "summary": "Four English voices. Uses a pronunciation dictionary and spells out words it cannot find."
+    },
+    {
+      "id": "android-dictation",
+      "runtime": "builtin"
+    },
+    {
+      "id": "sd15-q4",
+      "runtime": "sd15",
+      "title": "Stable Diffusion 1.5",
+      "summary": "Generate an image from text or start with a photo.",
+      "license": "CreativeML Open RAIL-M",
+      "repo": "second-state/stable-diffusion-v1-5-GGUF",
+      "revision": "031b5f5df991f511b3f5fa8fed6d99048ababb69",
+      "file": "stable-diffusion-v1-5-pruned-emaonly-Q4_0.gguf",
+      "bytes": 1566768416,
+      "sha256": "b8944e9fe0b69b36ae1b5bb0185b3a7b8ef14347fe0fa9af6c64c4829022261f"
+    },
+    {
+      "id": "qwen25-05b-gguf",
+      "runtime": "builtin",
+      "adapter": "llama-gguf-v1",
+      "title": "Qwen2.5 0.5B GGUF",
+      "summary": "Compact CPU chat model for short prompts.",
+      "license": "Apache 2.0",
+      "experimental": true,
+      "repo": "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+      "revision": "9217f5db79a29953eb74d5343926648285ec7e67",
+      "file": "qwen2.5-0.5b-instruct-q4_0.gguf",
+      "bytes": 428730208,
+      "sha256": "7671c0c304e6ce5a7fc577bcb12aba01e2c155cc2efd29b2213c95b18edaf6ed"
+    },
+    {
+      "id": "sdxl-base-q4",
+      "runtime": "builtin",
+      "adapter": "sdxl-v1",
+      "title": "Stable Diffusion XL Base",
+      "summary": "Generate and edit images with a complete quantized SDXL Base checkpoint.",
+      "license": "CreativeML Open RAIL++-M",
+      "experimental": true,
+      "repo": "gpustack/stable-diffusion-xl-base-1.0-GGUF",
+      "revision": "f00927e80a399ecb0bcacca868131d5e9d4e77aa",
+      "file": "stable-diffusion-xl-base-1.0-Q4_0.gguf",
+      "bytes": 3940010720,
+      "sha256": "4ab9818c9b3428eca96834c51fe294885608480991463f55bd9be53c822567c3"
+    },
+    {
+      "id": "bluev3-noa",
+      "runtime": "builtin",
+      "adapter": "bluev3-en-v1",
+      "title": "BlueV3 · Noa",
+      "summary": "English text-to-speech with the published Noa voice.",
+      "license": "MIT; OpenRAIL-M vocoder; CC BY 4.0 voice",
+      "language": "en",
+      "experimental": true,
+      "files": {
+        "duration": {
+          "repo": "notmax123/BlueV3-onnx",
+          "revision": "8410bbfe508a9b84a967324ecf3caf5f655326c9",
+          "path": "onnx/duration_predictor_style.onnx",
+          "bytes": 1524267,
+          "sha256": "46197a2c10f06e151adc6dd109082889e6aaf903c46ce25d798eebaa7b07e313"
+        },
+        "encoder": {
+          "repo": "notmax123/BlueV3-onnx",
+          "revision": "8410bbfe508a9b84a967324ecf3caf5f655326c9",
+          "path": "onnx/text_encoder.onnx",
+          "bytes": 27951369,
+          "sha256": "9dd84651a48048dce980d9d54c11fd3c04170602fb4f9e66957c08eeee2e55ba"
+        },
+        "flow": {
+          "repo": "notmax123/BlueV3-onnx",
+          "revision": "8410bbfe508a9b84a967324ecf3caf5f655326c9",
+          "path": "onnx/vector_estimator.int8.onnx",
+          "bytes": 66080072,
+          "sha256": "0f9ac63e1e501a1b4996d508b2c3b1aeb5d4ff4b4e91aa5e46fdbe9dc967f61e"
+        },
+        "vocoder": {
+          "repo": "notmax123/BlueV3-onnx",
+          "revision": "8410bbfe508a9b84a967324ecf3caf5f655326c9",
+          "path": "onnx/vocoder.onnx",
+          "bytes": 101428551,
+          "sha256": "054a700e9ef17d43de203212dca335fa2cd000cd9ca7701df49fcc544b49ccbe"
+        },
+        "voice": {
+          "repo": "notmax123/BlueV3-onnx",
+          "revision": "8410bbfe508a9b84a967324ecf3caf5f655326c9",
+          "path": "voices/noa.json",
+          "bytes": 287992,
+          "sha256": "34fea6e7746dc16399640604c8de87564bd759659ee91c536c1d30a3e9bab49d"
+        },
+        "vocabulary": {
+          "repo": "notmax123/BlueV3-onnx",
+          "revision": "8410bbfe508a9b84a967324ecf3caf5f655326c9",
+          "path": "onnx/vocab.json",
+          "bytes": 3382,
+          "sha256": "9cf96e595f62ea8a36d3be6724b06fb821614c2938d0724852d1a25feff5bad5"
+        },
+        "lexicon": {
+          "repo": "notmax123/BlueV3-onnx",
+          "revision": "8410bbfe508a9b84a967324ecf3caf5f655326c9",
+          "path": "frontend/polyg2p_data/en.lex",
+          "bytes": 2759393,
+          "sha256": "713aaed9ce1891e111eab2d213df560f043947b9268c6411b26a8c756ea99d32"
+        },
+        "pronunciation": {
+          "repo": "notmax123/BlueV3-onnx",
+          "revision": "8410bbfe508a9b84a967324ecf3caf5f655326c9",
+          "path": "frontend/polyg2p_data/en-large.g2p",
+          "bytes": 4880559,
+          "sha256": "a119ddaabc98ceb2696f2d9af52cfc0733388286d489b175c43129365ea15c4b"
+        }
+      },
+      "voices": [
+        {
+          "id": "noa",
+          "name": "Noa",
+          "language": "English"
+        }
+      ]
+    },
+    {
+      "id": "kokoro-int8-en",
+      "runtime": "builtin",
+      "adapter": "sherpa-kokoro-v1",
+      "title": "Kokoro INT8",
+      "summary": "English neural speech with the US English pronunciation lexicon.",
+      "license": "Apache 2.0 Kokoro model",
+      "language": "en",
+      "experimental": true,
+      "files": {
+        "model": {
+          "repo": "csukuangfj/kokoro-int8-multi-lang-v1_0",
+          "revision": "57adb37fc0e8d4bd430cfc1b8f8c2294945b9af2",
+          "path": "model.int8.onnx",
+          "bytes": 114202993,
+          "sha256": "75635ea3b85a32d00094dcdd61a258aba87c160f7c264c304a7b3ae9d734195e"
+        },
+        "voices": {
+          "repo": "csukuangfj/kokoro-int8-multi-lang-v1_0",
+          "revision": "57adb37fc0e8d4bd430cfc1b8f8c2294945b9af2",
+          "path": "voices.bin",
+          "bytes": 28200960,
+          "sha256": "1c5a5b983d3d50d8586d437a51f3faa2da7919ce76a013c081e65671a3447c29"
+        },
+        "tokens": {
+          "repo": "csukuangfj/kokoro-int8-multi-lang-v1_0",
+          "revision": "57adb37fc0e8d4bd430cfc1b8f8c2294945b9af2",
+          "path": "tokens.txt",
+          "bytes": 687,
+          "sha256": "6ebb6bb288f20f3ae8d004d3c2ca27697da27c037d75e81a60e2a6a663f95425"
+        },
+        "lexicon": {
+          "repo": "csukuangfj/kokoro-int8-multi-lang-v1_0",
+          "revision": "57adb37fc0e8d4bd430cfc1b8f8c2294945b9af2",
+          "path": "lexicon-us-en.txt",
+          "bytes": 5956885,
+          "sha256": "7daaab53a181be9885b853a8582bf1838186317e5dadacbcef9c426d6fa0da14"
+        }
+      },
+      "voices": [
+        {
+          "id": "0",
+          "name": "Speaker 0",
+          "language": "English"
+        }
+      ]
+    },
+    {
+      "id": "whisper-tiny-en",
+      "runtime": "builtin",
+      "adapter": "sherpa-whisper-v1",
+      "title": "Whisper Tiny English",
+      "summary": "Transcribe short English PCM WAV files offline.",
+      "license": "MIT Whisper model",
+      "language": "en",
+      "experimental": true,
+      "files": {
+        "encoder": {
+          "repo": "csukuangfj/sherpa-onnx-whisper-tiny.en",
+          "revision": "d026532c022fa99fd789d6b32446a1df7b6bfc43",
+          "path": "tiny.en-encoder.int8.onnx",
+          "bytes": 12937772,
+          "sha256": "0ce578b827c94a961aacb8fa14b02f096504b337e5c94be37c36238cbe3e8bc6"
+        },
+        "decoder": {
+          "repo": "csukuangfj/sherpa-onnx-whisper-tiny.en",
+          "revision": "d026532c022fa99fd789d6b32446a1df7b6bfc43",
+          "path": "tiny.en-decoder.int8.onnx",
+          "bytes": 89853865,
+          "sha256": "06c0e6ff6348d427e51839219d1c886c18cfdf411e629e33f5e1679bff9c1527"
+        },
+        "tokens": {
+          "repo": "csukuangfj/sherpa-onnx-whisper-tiny.en",
+          "revision": "d026532c022fa99fd789d6b32446a1df7b6bfc43",
+          "path": "tiny.en-tokens.txt",
+          "bytes": 835554,
+          "sha256": "306cd27f03c1a714eca7108e03d66b7dc042abe8c258b44c199a7ed9838dd930"
+        }
+      }
+    },
+    {
+      "id": "zipformer-small-en",
+      "runtime": "builtin",
+      "adapter": "sherpa-zipformer-v1",
+      "title": "Zipformer Small English",
+      "summary": "Transcribe short English PCM WAV files offline.",
+      "license": "Apache 2.0",
+      "language": "en",
+      "experimental": true,
+      "files": {
+        "encoder": {
+          "repo": "csukuangfj/sherpa-onnx-zipformer-small-en-2023-06-26",
+          "revision": "e8add5377a6cb7b629b5a0e08d6afe7a73442814",
+          "path": "encoder-epoch-99-avg-1.int8.onnx",
+          "bytes": 26015366,
+          "sha256": "3a6ac78a31cc2c60ca8c1e2e2f43c878fbbcaf051ada4900e0a42ef8ba53d375"
+        },
+        "decoder": {
+          "repo": "csukuangfj/sherpa-onnx-zipformer-small-en-2023-06-26",
+          "revision": "e8add5377a6cb7b629b5a0e08d6afe7a73442814",
+          "path": "decoder-epoch-99-avg-1.int8.onnx",
+          "bytes": 1307236,
+          "sha256": "f462ab9189ba6f9b2658774e6bf3d651913de54a3833655dc5e093e2f5e4c2b6"
+        },
+        "joiner": {
+          "repo": "csukuangfj/sherpa-onnx-zipformer-small-en-2023-06-26",
+          "revision": "e8add5377a6cb7b629b5a0e08d6afe7a73442814",
+          "path": "joiner-epoch-99-avg-1.int8.onnx",
+          "bytes": 259335,
+          "sha256": "6b183b6ec656e4d3ca6b86d0aeca992dac14df80aae6b416d7c068d0ff2bd4d7"
+        },
+        "tokens": {
+          "repo": "csukuangfj/sherpa-onnx-zipformer-small-en-2023-06-26",
+          "revision": "e8add5377a6cb7b629b5a0e08d6afe7a73442814",
+          "path": "tokens.txt",
+          "bytes": 5048,
+          "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+        }
+      }
+    },
+    {
+      "id": "tesseract-english",
+      "runtime": "builtin",
+      "adapter": "tesseract-lstm-v1",
+      "title": "Tesseract · English",
+      "summary": "Extract printed English text from images.",
+      "license": "Apache 2.0",
+      "language": "eng",
+      "experimental": true,
+      "files": {
+        "language": {
+          "repo": "lm-kit/tessdata-fast",
+          "revision": "bc1f3580293f86fabee4b57cdff0c96a7d15bef0",
+          "path": "eng.traineddata",
+          "bytes": 4113088,
+          "sha256": "7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2"
+        }
+      }
+    },
+    {
+      "id": "tesseract-hindi",
+      "runtime": "builtin",
+      "adapter": "tesseract-lstm-v1",
+      "title": "Tesseract · Hindi",
+      "summary": "Extract printed Hindi text from images.",
+      "license": "Apache 2.0",
+      "language": "hin",
+      "experimental": true,
+      "files": {
+        "language": {
+          "repo": "lm-kit/tessdata-fast",
+          "revision": "bc1f3580293f86fabee4b57cdff0c96a7d15bef0",
+          "path": "hin.traineddata",
+          "bytes": 1122751,
+          "sha256": "4c73ffc59d497c186b19d1e90f5d721d678ea6b2e277b719bee4e2af12271825"
+        }
+      }
+    }
+  ]
+}

@@ -90,11 +90,12 @@ Java_app_pocket_local_NativeDiffusion_generate(JNIEnv* env, jobject, jobjectArra
         std::vector<std::string> args;
         for (int i = 0; i < 11; ++i) args.push_back(string_at(env, values, i));
         const bool moss = args[0] == "moss";
-        if ((!moss && args[0] != "sd15") || args[10].empty() ||
+        const bool sdxl = args[0] == "sdxl";
+        if ((!moss && !sdxl && args[0] != "sd15") || args[10].empty() ||
             (!moss && args[1].empty()) ||
             (moss && (args[2].empty() || args[3].empty() || args[4].empty() || args[5].empty())))
             throw std::runtime_error("This image pipeline is missing required model components.");
-        if (moss && !args[9].empty()) throw std::runtime_error("Image-to-image is enabled only for the SD 1.x pipeline.");
+        if (moss && !args[9].empty()) throw std::runtime_error("Choose a Stable Diffusion pipeline for image-to-image.");
 
         sd_ctx_params_t context_params;
         sd_ctx_params_init(&context_params);
@@ -118,7 +119,9 @@ Java_app_pocket_local_NativeDiffusion_generate(JNIEnv* env, jobject, jobjectArra
         // Do not dispatch a foreign architecture through the wrong app profile.
         if (moss && version.find("MOSS") == std::string::npos && version.find("moss") == std::string::npos)
             throw std::runtime_error("The diffusion weights are not a MOSS image model.");
-        if (!moss && version != "SD 1.x")
+        if (sdxl && version != "SDXL")
+            throw std::runtime_error("Choose a complete SDXL base checkpoint for this pipeline.");
+        if (!moss && !sdxl && version != "SD 1.x")
             throw std::runtime_error("Choose a complete SD 1.x checkpoint for this pipeline.");
         sd_img_gen_params_t params;
         sd_img_gen_params_init(&params);

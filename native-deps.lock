@@ -1,5 +1,9 @@
 stable-diffusion.cpp https://github.com/leejet/stable-diffusion.cpp 290148d2e31ca6ef9757d567905776b5f3646db5
 ggml https://github.com/leejet/ggml d49c49e1dd361ba3c0a77c90b5b1404b83969aa8
 android-ndk 28.2.13676358
+llama.cpp https://github.com/ggml-org/llama.cpp 0cac1220e35a25fcfbe58e115ee2282a2de76142
+sherpa-onnx-android 2.0.3 7744a3a8f08f017d59c2d8ed8d9b700345561f5abe9f4e06dc6eaef3a0b977b4
+tesseract4android 4.9.0 bce5d6413a1a5ae3d7240033fbbc851ba3217d0a08d9769400e17a077f42cb2a
+polyg2p https://github.com/maxmelichov/polyg2p cbb613499adcda2d3039861c7d347c902e60fbd0
 cmake 3.22.1
 cactus-android-arm64 https://huggingface.co/Cactus-Compute/cactus f4ab2741203a282c6e7b89983de2b5e5b2e805a8 4.1.4

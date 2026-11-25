@@ -14,7 +14,9 @@ class ModelDownloadService : Service() {
     private lateinit var store: ImageStore
     private lateinit var state: JSONObject
     private val worker = Executors.newSingleThreadExecutor()
+    private val main = Handler(Looper.getMainLooper())
     private var started = false
+    private var latestStartId = 0
     private var wakeLock: PowerManager.WakeLock? = null
     private var lastProgress = 0L
     override fun onBind(intent: Intent?) = null
@@ -23,6 +25,7 @@ class ModelDownloadService : Service() {
         getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel("model-downloads", "Model downloads", NotificationManager.IMPORTANCE_LOW))
     }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        latestStartId = startId
         if (intent?.action == PAUSE) {
             synchronized(this) {
                 if (store.setupRunning()) {
@@ -44,35 +47,48 @@ class ModelDownloadService : Service() {
         wakeLock = getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "runlocal:downloads").apply { acquire(60 * 60 * 1000L) }
         worker.execute {
             val result = runCatching {
-                if (intent?.action == RESOLVE) {
-                    state = JSONObject().put("id", UUID.randomUUID().toString()).put("url", intent.getStringExtra("url").orEmpty()).put("startedAt", System.currentTimeMillis()).put("state", "resolving").put("message", "Checking the model and finding its downloads…")
+                val action = intent?.action
+                if (action == RESOLVE || action == CATALOG) {
+                    state = JSONObject().put("id", UUID.randomUUID().toString()).put("startedAt", System.currentTimeMillis())
+                }
+                if (action == RESOLVE) {
+                    state.put("url", intent.getStringExtra("url").orEmpty()).put("state", "resolving").put("message", "Checking the model and finding its downloads…")
                     publish()
                     val plan = HuggingFaceResolver().resolve(state.getString("url"))
                     state.put("plan", plan.toJson()).put("message", "Model found. Checking space and memory…")
                     publish()
+                } else if (action == CATALOG) {
+                    val id = intent.getStringExtra(CATALOG_ID).orEmpty()
+                    val plan = ModelSetupPlan.fromJson(intent.getStringExtra(CATALOG_PLAN).orEmpty())
+                    ModelCatalog.validatePlan(plan)
+                    state.put("catalogId", id).put("catalogKey", plan.files.single().key).put("plan", plan.toJson())
                 }
                 run {
                     val plan = ModelSetupPlan.fromJson(state.getString("plan"))
                     val memory = ActivityManager.MemoryInfo().also { getSystemService(ActivityManager::class.java).getMemoryInfo(it) }
-                    require(plan.estimatedRam < memory.totalMem - 1024L * 1024 * 1024) { "This model is too large for this phone's RAM. Try a lighter model instead." }
-                    state.put("state", "downloading").put("startedAt", System.currentTimeMillis()).put("message", "Downloading your model…")
+                    require(plan.fitsInRam(memory.totalMem)) { "This model is too large for this phone's RAM. Try a lighter model instead." }
+                    state.put("state", "downloading").put("startedAt", System.currentTimeMillis()).put("message", "Downloading ${plan.title}…")
+                        .put("total", plan.totalBytes).put("bytes", 0).remove("etaSeconds")
                     publish()
                     val directory = File(filesDir, "model-downloads").apply { mkdirs() }
                     val missing = plan.files.filter { store.cached(it) == null }
                     val needed = missing.sumOf { (it.size - File(directory, it.key + ".part").length()).coerceAtLeast(0) }
-                    require(StatFs(filesDir.path).availableBytes > needed + 256L * 1024 * 1024) { "Not enough free storage for this model. Free some space and tap Resume." }
+                    require(StatFs(filesDir.path).availableBytes > needed + MODEL_STORAGE_RESERVE) { "Not enough free storage for this model. Free some space and tap Resume." }
                     var completed = plan.files.filter { store.cached(it) != null }.sumOf { it.size }
                     for (file in missing) {
                         val partial = File(directory, file.key + ".part")
+                        val eta = DownloadEta()
                         val downloaded = ModelFileDownloader().download(file, partial,
-                            checkSpace = { bytes -> require(StatFs(filesDir.path).availableBytes > bytes + 256L * 1024 * 1024) { "Storage is almost full. Free space and tap Resume." } },
+                            checkSpace = { bytes -> require(StatFs(filesDir.path).availableBytes > bytes + MODEL_STORAGE_RESERVE) { "Storage is almost full. Free space and tap Resume." } },
                             progress = { bytes, verifying ->
                                 val now = SystemClock.elapsedRealtime()
+                                val remaining = if (verifying) null else eta.update(completed + bytes, plan.totalBytes, now)
                                 if (now - lastProgress > 500) {
                                     lastProgress = now
                                     synchronized(this) {
                                         state.put("state", if (verifying) "verifying" else "downloading").put("bytes", completed + bytes).put("total", plan.totalBytes)
                                             .put("message", if (verifying) "Checking your download…" else "Downloading your model…")
+                                        state.put("etaSeconds", remaining)
                                         publish()
                                     }
                                 }
@@ -83,12 +99,14 @@ class ModelDownloadService : Service() {
                     state.put("state", "ready").put("message", "Your model is added. Select it in Chat.").put("bytes", plan.totalBytes).put("total", plan.totalBytes)
                 }
             }
-            synchronized(this) {
+            main.post {
                 result.onFailure { error -> state.put("state", "error").put("message", error.message ?: "Setup could not finish. Check your connection and try again.") }
                 publish()
+                if (wakeLock?.isHeld == true) wakeLock?.release()
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                started = false
+                stopSelf(latestStartId)
             }
-            if (wakeLock?.isHeld == true) wakeLock?.release()
-            stopForeground(STOP_FOREGROUND_REMOVE); stopSelf(startId)
         }
         return START_NOT_STICKY
     }
@@ -109,6 +127,9 @@ class ModelDownloadService : Service() {
     companion object {
         const val RESOLVE = "app.pocket.local.RESOLVE_MODEL"
         const val DOWNLOAD = "app.pocket.local.DOWNLOAD_MODEL"
+        const val CATALOG = "app.pocket.local.DOWNLOAD_CATALOG_MODEL"
+        const val CATALOG_ID = "catalogId"
+        const val CATALOG_PLAN = "catalogPlan"
         const val PAUSE = "app.pocket.local.PAUSE_DOWNLOAD"
     }
 }

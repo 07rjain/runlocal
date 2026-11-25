@@ -13,3 +13,4 @@ git -C "$dependency_path" fetch origin "$revision" --depth 1
 git -C "$dependency_path" checkout --detach "$revision"
 git -C "$dependency_path" submodule update --init --depth 1 ggml
 "$project_root/scripts/bootstrap-cactus.sh"
+bash "$project_root/scripts/bootstrap-adapters.sh"

@@ -1,20 +1,21 @@
 # RunLocal
 
-A small native Android app for chatting with models on your phone. Two tabs: **Chat** and **Models**. No account, analytics, prompt uploads, or cloud inference. Internet is used for requested Hugging Face model setup and optional daily GitHub release checks in configured builds; downloaded models run locally afterwards.
+A small native Android app for chatting with models on your phone. Two tabs: **Chat** and **Models**. No account, analytics, prompt uploads, or cloud inference. Internet is used for requested Hugging Face model setup, the catalog check when browsing for models, and optional daily GitHub release checks. Downloaded models run locally.
 
-**Current candidate: 1.0.0-rc9** · Android 12+ · ARM64 phones. This is a development release candidate, pending physical-device acceptance testing. Application code is Apache-2.0; the bundled Woof runtime has a separate non-commercial license; a stable v1 APK release has not been published.
+**Candidate: 1.0.0-rc10** · Android 12+ · ARM64 phones. Physical-device acceptance is pending. Application code is Apache-2.0. The bundled Woof runtime has a separate non-commercial license. A stable v1 APK release has not been published.
 
 ## Use it
 
-This repository contains source code; APKs are distributed separately through [GitHub Releases](https://github.com/07rjain/runlocal/releases) when published. For a local development build, install `dist/runlocal-1.0.0-rc9-arm64.apk` after running the build and packaging steps below. Model weights are downloaded separately. The official APK retains the existing app ID and signing certificate with a higher version code, so it can update earlier official builds without uninstalling them.
+APKs are distributed through [GitHub Releases](https://github.com/07rjain/runlocal/releases). For a local development build, install `dist/runlocal-1.0.0-rc10-arm64.apk` after running the build and packaging steps below. Model weights are downloaded separately. An official APK with the existing app ID and signing certificate and a higher version code can update earlier official builds in place.
 
-1. **Models** is a single installed-model library with All, Text, Voice and Image filters. Tap **Add model** to paste a public Hugging Face model or supported LoRA URL, import files, or connect a folder. Each model has **Use in Chat** and a **⋮** management menu. Required files are selected, downloaded, verified, and installed automatically. This can use mobile data. Downloads have pause/resume controls and storage/RAM checks.
+1. **Models** is a single installed-model library with All, Text, Voice, Image and OCR filters. In rc10, **Add model** opens a catalog for chat, OCR, speech and image generation. Pick a task to see available models, storage and RAM fit estimates, and a download action. The catalog installs verified files directly from Hugging Face. Pasting a model link, importing files and connecting folders are available under **Other ways to add a model**. Downloads can use mobile data and support pause and resume.
 2. In **Chat**, select an installed text, voice or image model at the top and send a prompt. Text models hold a conversation; voice models speak what you type, with replay in the saved conversation. Image models return images in the chat, with a Save image action. Image prompts are independent generations; they do not automatically carry forward previous images.
 3. Open **☰** to switch between saved chats; **＋** starts a new one. Hold a conversation in history to delete it. Changing a model starts a separate chat when the current chat has messages. Existing single-conversation history is migrated on first launch of this candidate.
-4. The **microphone** dictates into the composer using Android's on-device recognizer. Download Woof under **Models → Add model → Supported voice models**, then choose Juno or Mira in Chat's model picker and send text to speak it. The **speaker** below a text reply reads it aloud; choose its voice under **＋ tools → Read-aloud voice**. Android language-pack availability depends on the phone.
+4. The **microphone** dictates into the composer using Android's on-device recognizer. In the catalog, use **Speak text** to download Woof, then choose Juno or Mira and send text to speak it. On rc9, Woof is under **Add model → Supported voice models**. The **speaker** below a text reply reads it aloud. Choose its voice under **＋ tools → Read-aloud voice**. Android language-pack availability depends on the phone.
 5. The single message bar contains message input, **＋ tools**, microphone, and send/play/stop. Attachments and image options are under **＋**. App update settings are in chat history.
-6. With a text model selected, tap **＋ tools → CPU / GPU processing → CPU only / Use GPU**. The header shows the selected processor. This choice is saved per model. GPU requests acceleration from the phone’s driver; failures do not silently change to CPU. Image generation remains CPU-only.
-7. With an SD 1.x image model selected, **＋ → Attach starting image** attaches a starting image for image-to-image generation. **＋ → Image options** opens optional image settings. A prompt alone uses the defaults.
+6. With a GPU-capable LiteRT-LM model selected, tap **＋ tools → CPU / GPU processing → CPU only / Use GPU**. The header shows the selected processor. This choice is saved per model. GPU requests acceleration from the phone’s driver; failures do not silently change to CPU. GGUF chat and image generation use the CPU.
+7. With a supported SD 1.x or SDXL Base image model selected, **＋ → Attach starting image** attaches a starting image for image-to-image generation. **＋ → Image options** opens optional image settings.
+8. For offline transcription, download Whisper or Zipformer in **Models → Add model**, then choose **Chat → ＋ → Transcribe an audio file** and select a mono 16-bit PCM WAV up to two minutes long.
 
 History, drafts, generated images, and model assignments are stored privately on the device. Replies remain attached to the conversation that started them when you switch chats during generation. Image chats retain their component/LoRA selection; removing a required file produces an error instead of silently substituting another model. Text inference uses the model’s chat template with proper user/assistant roles. A native engine/conversation is reused only for its owning chat and processor; switching chats/processors, a failed decode, or rolling the context window recreates it. Replay includes up to six earlier valid entries and the new message. Context is capped at 2,048 tokens; output is capped at 512 tokens, with thinking disabled. Long prompts/replies can still exceed a model’s context limit.
 
@@ -22,20 +23,24 @@ History, drafts, generated images, and model assignments are stored privately on
 
 Android’s native launch splash uses the RunLocal icon and colors. Sending a text message shows a spinner and elapsed time, with distinct loading-model, preparing-prompt and generating stages. Responses stream into the pending reply without rebuilding the composer. Reading older messages stops automatic scrolling. Model setup/import tasks also have an indeterminate loading indicator; no artificial progress percentage is displayed.
 
-Completed text replies include decode tokens/sec, runtime time to first token (TTFT), and total time. Tap the summary for output-token count, processor, model/session load, and time to first text received including loading. Decode speed/token count/TTFT are from LiteRT-LM’s last native decode; streamed chunks and words are not treated as tokens. Live text timing is measured with a monotonic clock. Native statistics may be unavailable for some models/backends and are labeled unavailable, not estimated. Warm sessions report zero model/session load. These values are local to each reply, persist across restarts, and are not uploaded. Image generation has no text token-rate metrics.
+Completed text replies include decode tokens/sec, runtime time to first token (TTFT), and total time when available. Tap the summary for output-token count, processor, model/session load, and time to first text received including loading. Native decode statistics come from LiteRT-LM or llama.cpp. Live text timing is measured with a monotonic clock. Warm sessions report zero model/session load. These values are local to each reply, persist across restarts, and are never uploaded.
+
+In the catalog, **Details** shows the last measured timing when the model has run successfully on this phone. Download time is estimated from the active transfer. Model fit is estimated locally from memory and free storage. GPU execution still depends on the phone’s graphics driver.
+
+The catalog checks the public GitHub list when opened and keeps the last valid copy for offline browsing. The request contains no chat data or device profile. Maintainers can [edit the model list without shipping a new APK](docs/MODEL-CATALOG.md).
 
 ## Model support
 
 | Model type | Current support |
 | --- | --- |
-| Text chat | Compatible `.litertlm` containers with explicit CPU/GPU choice through LiteRT-LM 0.18.1; local import and public Hugging Face setup. Repository links choose the smallest generic candidate; direct file links choose that file. Device-specific NPU variants are excluded. Container checks do not prove runtime/operator compatibility. |
-| Text-to-image | A complete SD 1.x checkpoint through stable-diffusion.cpp. Automatic setup includes a known quantized SD 1.5 recipe and supported adapters. |
-| Image-to-image | SD 1.x with an attached input image. |
+| Text chat | Compatible `.litertlm` exports through LiteRT-LM 0.18.1 with explicit CPU/GPU choice. Rc10 adds compatible single-file instruct GGUF exports through llama.cpp on CPU. |
+| Text-to-image | Complete SD 1.x and experimental SDXL Base checkpoints through stable-diffusion.cpp on CPU. |
+| Image-to-image | SD 1.x and experimental SDXL Base with an attached input image. |
 | MOSS Image SFT | Experimental component pipeline and automatic dependency setup for supported LoRAs. Full phone generation has not been verified. |
-| Speech-to-text | Installed Android on-device speech recognition; no network fallback. |
-| Text-to-speech | Android installed offline voices, plus an extensible downloaded-model system. Underdog Woof (English Juno/Mira) is the first supported adapter; Android inference is experimental pending phone acceptance. |
-| OCR | Experimental Cactus Mirage for printed Latin-script text on ARM64. Install via **Models → Add model**, then use **Chat → ＋ → Extract text from an image**. See [OCR setup and validation](docs/MIRAGE-OCR.md). |
-| Video, GGUF text, arbitrary Cactus bundles, `.task`, ONNX | Not supported by the installed runtimes. Recognizable local files can still be listed with compatibility labels. |
+| Speech-to-text | Android on-device microphone dictation and experimental Whisper/Zipformer WAV transcription. |
+| Text-to-speech | Android offline voices and experimental Woof, Kitten TTS 2 Pico, BlueV3 English and Kokoro. The APK also includes a Piper adapter for compatible recipes. |
+| OCR | Experimental Cactus Mirage on ARM64 and Tesseract LSTM language packs. Install via **Models → Add model**, then use **Chat → ＋ → Extract text from an image**. See [Mirage setup and validation](docs/MIRAGE-OCR.md). |
+| Other formats | Video, arbitrary Cactus bundles, `.task`, and arbitrary ONNX graphs require additional runtimes or adapter contracts. |
 
 Arbitrary Hugging Face repositories are not interchangeable. Unsupported architectures, gated/private downloads, multi-shard Diffusers pipelines, and automatic conversion are not implemented. Only reviewed, bundled runtime code executes; downloaded repositories cannot supply executable Python code. Arbitrary speech formats require a compatible adapter and are rejected. Model licenses and access terms apply separately.
 
@@ -59,7 +64,7 @@ Manual image component assignment and removal are under **Models → Add model �
 
 ## Build and verify
 
-Requirements: Python 3.13 (for the bundled speech runtime build), JDK 21+ (the LiteRT dependency’s JVM classes require Java 21 for host tests), Android SDK platform 36, NDK 28.2.13676358, CMake 3.22.1, and `ANDROID_HOME` or an untracked `local.properties` with `sdk.dir`. Pinned native revisions are recorded in `native-deps.lock`.
+Requirements include Python 3.13, JDK 21+, stable Rust managed with rustup, Android SDK platform 36, NDK 28.2.13676358, CMake 3.22.1, and `ANDROID_HOME` or an untracked `local.properties` with `sdk.dir`. The bootstrap script installs the Rust Android targets. Pinned native revisions are recorded in `native-deps.lock`.
 
 ```sh
 ./scripts/bootstrap-native.sh
@@ -112,8 +117,6 @@ Code map:
 - `LocalEngine.kt`: serial CPU/GPU LiteRT-LM text adapter behind `TextRuntime`.
 - `ImageGenerationService.kt` / `NativeDiffusion.kt` / `cpp/diffusion_jni.cpp`: isolated CPU diffusion process, notifications/cancellation and PNG output.
 
-RunLocal uses LiteRT-LM for chat, stable-diffusion.cpp for images, and the Cactus C API for the pinned Mirage OCR model on ARM64. The OCR adapter accepts selected images and extracts text. Cactus Chat’s app and support for its other models are outside this integration.
-
-Downloaded speech setup currently supports only the reviewed Woof recipe. Additional speech families need a runtime adapter, model manifest, license review and phone tests; this does not make arbitrary ONNX, GGUF, NPZ or Safetensors voice models interchangeable. Speech setup pauses when leaving RunLocal and resumes from partial files. Speech playback is foreground-only and stops when leaving the app. Woof downloads are about 40.6 MB, while runtime RAM is substantially larger; setup includes no model weights in the APK. Its non-commercial license requires visible attribution and separate commercial permission.
+See the [catalog guide](docs/MODEL-CATALOG.md) for adapter contracts and the [speech guide](docs/SPEECH-MODELS.md) for voice setup and testing. Voice playback stops when leaving the app. Woof’s non-commercial license requires visible attribution and separate commercial permission.
 
 Voice by [Underdog Woof](https://underdog.ai). Its [Underdog Non-Commercial License 1.0](app/src/main/python/underdog_woof/LICENSE) and [NOTICE](app/src/main/python/underdog_woof/NOTICE) apply separately to the bundled runtime and downloaded model.

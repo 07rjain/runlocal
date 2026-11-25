@@ -10,6 +10,7 @@ require(runlocalAbis.isNotEmpty() && runlocalAbis.all { it in listOf("arm64-v8a"
 val releaseRepository = providers.gradleProperty("runlocal.repository").orElse("07rjain/runlocal").get()
 require(releaseRepository.isEmpty() || Regex("[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9][A-Za-z0-9._-]{0,99}").matches(releaseRepository))
 val signingPath = providers.environmentVariable("RUNLOCAL_KEYSTORE").orNull
+val blueOutput = layout.buildDirectory.dir("blue-phonemizer")
 
 android {
     namespace = "app.pocket.local"
@@ -18,8 +19,8 @@ android {
         applicationId = "app.pocket.local"
         minSdk = 31
         targetSdk = 36
-        versionCode = 15
-        versionName = "1.0.0-rc9"
+        versionCode = 16
+        versionName = "1.0.0-rc10"
         ndk { abiFilters += runlocalAbis }
         buildConfigField("String", "RELEASE_REPOSITORY", "\"$releaseRepository\"")
         externalNativeBuild { cmake { arguments += listOf("-DANDROID_STL=c++_shared"); targets += listOf("pocket_diffusion", "pocket_ocr") } }
@@ -37,6 +38,8 @@ android {
     externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt"); version = "3.22.1" } }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     buildFeatures { buildConfig = true }
+    packaging { jniLibs.excludes += "**/x86/**" }
+    sourceSets["main"].jniLibs.srcDir(blueOutput.map { it.dir("jni") })
     signingConfigs {
         if (signingPath != null) create("distribution") {
             storeFile = file(signingPath)
@@ -59,6 +62,22 @@ android {
         providers.gradleProperty("liveModelCheck").orNull?.let { test.systemProperty("runlocal.liveModels", it) }
     } }
 }
+val buildBluePhonemizer by tasks.registering {
+    inputs.files(rootProject.fileTree("blue-phonemizer") { include("Cargo.*", "src/**") })
+    inputs.file(rootProject.file("scripts/build-blue-phonemizer.sh"))
+    inputs.file(rootProject.file("native-deps.lock"))
+    inputs.property("abis", runlocalAbis)
+    outputs.dir(blueOutput.map { it.dir("jni") })
+    doLast {
+        runlocalAbis.forEach { abi ->
+            project.exec {
+                commandLine("bash", rootProject.file("scripts/build-blue-phonemizer.sh"), rootProject.projectDir,
+                    android.ndkDirectory, abi, blueOutput.get().asFile)
+            }
+        }
+    }
+}
+tasks.named("preBuild") { dependsOn(buildBluePhonemizer) }
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
 // Python 3.13 and these Android NumPy wheels support 16 KB memory pages.
@@ -72,5 +91,8 @@ chaquopy {
 
 dependencies {
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.1")
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.27.0")
+    implementation(project(":llama-runtime"))
+    implementation(files("../third_party/android-adapters/sherpa.aar", "../third_party/android-adapters/tesseract.aar"))
     testImplementation("junit:junit:4.13.2")
 }

@@ -24,22 +24,36 @@ interface SpeechBackend {
 object SpeechBackends {
     fun create(context: Context, id: String): SpeechBackend = when (id) {
         SpeechModelCatalog.WOOF_BACKEND -> WoofSpeechBackend(context)
+        SpeechModelCatalog.KITTEN_PICO_BACKEND -> KittenPicoBackend(SpeechModelStore(context))
+        RecipeAdapter.KOKORO.backend, RecipeAdapter.PIPER.backend -> SherpaTtsBackend(SpeechModelStore(context))
+        RecipeAdapter.BLUE.backend -> BlueSpeechBackend(context)
         else -> error("This speech runtime is not bundled in this app version.")
     }
+}
+
+private class KittenPicoBackend(private val store: SpeechModelStore) : SpeechBackend {
+    override fun synthesize(spec: SpeechModelSpec, voice: String, text: String, output: File,
+                            cancellation: SpeechCancellation): SpeechSynthesisResult =
+        KittenPico.synthesize(store.modelDirectory(spec), voice, text, output, cancellation::isCancelled)
 }
 
 private class WoofSpeechBackend(private val context: Context) : SpeechBackend {
     override fun synthesize(spec: SpeechModelSpec, voice: String, text: String, output: File,
                             cancellation: SpeechCancellation): SpeechSynthesisResult {
         // Called only on the speech process's serial worker. Python is never started in the UI process.
-        if (!Python.isStarted()) {
-            Os.setenv("OPENBLAS_NUM_THREADS", "1", true)
-            Os.setenv("OMP_NUM_THREADS", "1", true)
-            Python.start(AndroidPlatform(context))
-        }
+        val python = localSpeechPython(context)
         val weights = SpeechModelStore(context).file(spec, spec.files.single()).absolutePath
-        val values = Python.getInstance().getModule("runlocal_woof")
+        val values = python.getModule("runlocal_woof")
             .callAttr("synthesize", weights, voice, text, output.absolutePath, cancellation).asList()
         return SpeechSynthesisResult(values[0].toLong(), values[1].toLong(), values[2].toLong(), 24000)
     }
+}
+
+internal fun localSpeechPython(context: Context): Python {
+    if (!Python.isStarted()) {
+        Os.setenv("OPENBLAS_NUM_THREADS", "1", true)
+        Os.setenv("OMP_NUM_THREADS", "1", true)
+        Python.start(AndroidPlatform(context))
+    }
+    return Python.getInstance()
 }

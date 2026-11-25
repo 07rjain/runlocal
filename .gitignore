@@ -7,6 +7,10 @@ local.properties
 .cxx/
 third_party/stable-diffusion.cpp/
 third_party/cactus-android-arm64/
+third_party/llama.cpp/
+third_party/android-adapters/
+third_party/polyg2p/
+/blue-phonemizer/target/
 *.jks
 *.keystore
 *.pem

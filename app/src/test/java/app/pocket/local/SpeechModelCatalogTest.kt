@@ -10,11 +10,17 @@ import java.security.MessageDigest
 
 class SpeechModelCatalogTest {
     @Test fun supportedModelLinksSelectTheSameRecipe() {
-        val spec = SpeechModelCatalog.models.single()
-        assertEquals(spec, SpeechModelCatalog.forLink(spec.modelUrl))
-        assertEquals(spec, SpeechModelCatalog.forLink(spec.files.single().url))
-        assertEquals(setOf("juno", "mira"), spec.voices.map { it.id }.toSet())
-        spec.files.forEach { it.validate() }
+        for (spec in SpeechModelCatalog.models) {
+            assertEquals(spec, SpeechModelCatalog.forLink(spec.modelUrl))
+            spec.files.forEach {
+                it.validate()
+                assertEquals(spec, SpeechModelCatalog.forLink(it.url))
+            }
+        }
+        assertEquals(setOf("juno", "mira"), SpeechModelCatalog.find("underdog-woof-v1").voices.map { it.id }.toSet())
+        val pico = SpeechModelCatalog.find(SpeechModelCatalog.KITTEN_PICO_BACKEND)
+        assertEquals(setOf("eleanor", "edith", "otis", "frank"), pico.voices.map { it.id }.toSet())
+        assertEquals(9_479_308L, pico.downloadBytes)
     }
     @Test fun arbitraryWeightsAndDifferentRevisionsAreNotExecutableModels() {
         assertNull(SpeechModelCatalog.forLink("https://huggingface.co/other/speech"))
@@ -23,7 +29,7 @@ class SpeechModelCatalogTest {
         assertThrows(IllegalStateException::class.java) { SpeechModelCatalog.find("arbitrary-file") }
     }
     @Test fun speechDownloadsRejectUnpinnedOrUnsafeFiles() {
-        val file = SpeechModelCatalog.models.single().files.single()
+        val file = SpeechModelCatalog.find("underdog-woof-v1").files.single()
         listOf(file.copy(revision = "main"), file.copy(path = "../weights.npz"), file.copy(digest = ""), file.copy(size = 0)).forEach {
             assertThrows(IllegalArgumentException::class.java) { it.validate() }
         }
@@ -31,7 +37,7 @@ class SpeechModelCatalogTest {
     @Test fun speechWeightsUseTheSharedDownloaderAndRejectCorruption() {
         val content = "small speech weights".toByteArray()
         val digest = MessageDigest.getInstance("SHA-256").digest(content).joinToString("") { "%02x".format(it.toInt() and 255) }
-        val file = SpeechModelCatalog.models.single().files.single().copy(size = content.size.toLong(), digest = digest)
+        val file = SpeechModelCatalog.find("underdog-woof-v1").files.single().copy(size = content.size.toLong(), digest = digest)
         val directory = kotlin.io.path.createTempDirectory("speech-download").toFile()
         val destination = File(directory, "weights.part")
         fun downloader(bytes: ByteArray) = ModelFileDownloader { object : HttpURLConnection(URL(file.url)) {

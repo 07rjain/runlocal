@@ -23,7 +23,7 @@ class ModelStore(private val context: Context) {
         set(value) { prefs.edit().putString("selected", value).apply() }
 
     fun models(): List<LocalModel> = directory.listFiles().orEmpty()
-        .filter { it.extension == "litertlm" }
+        .filter { it.extension in listOf("litertlm", "gguf") }
         .map { file -> LocalModel(file.nameWithoutExtension,
             runCatching { JSONObject(File(directory, "${file.nameWithoutExtension}.meta").readText()).getString("name") }.getOrNull() ?: prefs.getString("name_${file.nameWithoutExtension}", file.name) ?: file.name, file) }
         .sortedBy { it.name.lowercase() }
@@ -34,7 +34,7 @@ class ModelStore(private val context: Context) {
         remote.validate()
         cached(remote)?.let { return it }
         ModelInspector.validate(source, remote.name, ModelRole.TEXT)
-        val destination = File(directory, "${remote.key}.litertlm")
+        val destination = File(directory, "${remote.key}.${remote.name.substringAfterLast('.')}")
         check(source.renameTo(destination)) { "Could not save the text model." }
         val metadata = AtomicFile(File(directory, "${remote.key}.meta"))
         val output = metadata.startWrite()

@@ -73,7 +73,7 @@ class SpeechService : Service() {
         val text = message.data.getString("text").orEmpty()
         val voice = message.data.getString("voice").orEmpty()
         val result = runCatching {
-            val spec = SpeechModelCatalog.find(message.data.getString("model").orEmpty())
+            val spec = SpeechModelStore(this).find(message.data.getString("model").orEmpty())
             require(text.isNotBlank() && text.length <= MAX_TEXT) { "Read up to $MAX_TEXT characters at a time." }
             require(spec.voices.any { it.id == voice }) { "Choose a voice provided by this speech model." }
             require(SpeechModelStore(this).installed(spec)) { "Download this speech model in Models first." }

@@ -8,6 +8,9 @@ import java.net.URI
 import java.net.URL
 import java.io.ByteArrayOutputStream
 
+private val vendorTextModel = Regex("(mediatek|qualcomm|npu|hexagon|exynos)", RegexOption.IGNORE_CASE)
+internal fun isGenericTextModel(path: String) = path.endsWith(".litertlm") && !vendorTextModel.containsMatchIn(path)
+
 fun withModelTrigger(prompt: String, trigger: String): String =
     if (trigger.isNotBlank() && !prompt.contains(trigger, ignoreCase = true)) "$trigger, $prompt" else prompt
 
@@ -45,7 +48,11 @@ data class RemoteModelFile(val repo: String, val revision: String, val path: Str
         require(size in 1..(64L * 1024 * 1024 * 1024)) { "Invalid download size." }
         require((hashType == "sha256" && Regex("[0-9a-f]{64}").matches(digest)) ||
             (hashType == "git-sha1" && Regex("[0-9a-f]{40}").matches(digest))) { "Download integrity metadata is missing." }
-        require(if (role == ModelRole.TEXT) name.endsWith(".litertlm") else if (role == ModelRole.TOKENIZER) name.endsWith(".json") else name.endsWith(".gguf") || name.endsWith(".safetensors")) { "Unsupported download format." }
+        require(when (role) {
+            ModelRole.TEXT -> name.endsWith(".litertlm") || name.endsWith(".gguf")
+            ModelRole.TOKENIZER -> name.endsWith(".json")
+            else -> name.endsWith(".gguf") || name.endsWith(".safetensors")
+        }) { "Unsupported download format." }
     }
 }
 
@@ -53,13 +60,16 @@ data class ModelSetupPlan(val repo: String, val title: String, val family: Strin
                           val files: List<RemoteModelFile>) {
     val totalBytes: Long get() = files.sumOf { it.size }
     val estimatedRam: Long get() = (totalBytes * 1.25).toLong() + 512L * 1024 * 1024
+    val isText get() = family == "text" || family == "gguf"
+    internal fun fitsInRam(totalRam: Long): Boolean = estimatedRam < totalRam - 1024L * 1024 * 1024
     fun validate() {
         ModelLink.parse(repo)
-        require(family in listOf("sd15", "moss", "text") && files.size in 1..5)
+        require((isText || family in IMAGE_PROFILES) && files.size in 1..5)
         files.forEach { it.validate() }
-        val required = if (family == "text") setOf(ModelRole.TEXT) else if (family == "moss") setOf(ModelRole.DIFFUSION, ModelRole.ENCODER, ModelRole.VAE, ModelRole.TOKENIZER) else setOf(ModelRole.CHECKPOINT)
+        val required = if (isText) setOf(ModelRole.TEXT) else if (family == "moss") setOf(ModelRole.DIFFUSION, ModelRole.ENCODER, ModelRole.VAE, ModelRole.TOKENIZER) else setOf(ModelRole.CHECKPOINT)
         require(files.map { it.role }.toSet().containsAll(required) && files.map { it.role }.distinct().size == files.size) { "The automatic setup is incomplete." }
-        require(files.all { it.role in required || (family != "text" && it.role == ModelRole.LORA) })
+        require(files.all { it.role in required || (!isText && it.role == ModelRole.LORA) })
+        if (isText) require(files.single().name.endsWith(if (family == "gguf") ".gguf" else ".litertlm"))
         require(trigger.length <= 128 && trigger.none { it.code < 32 })
     }
     fun toJson(): String = Gson().toJson(this)
@@ -120,7 +130,7 @@ class HuggingFaceResolver(private val source: ModelMetadataSource = HuggingFaceM
         if (textFiles.isNotEmpty() || link.file?.endsWith(".litertlm") == true) {
             val pipeline = metadata.get("pipeline_tag")?.takeIf { it.isJsonPrimitive }?.asString.orEmpty()
             require(pipeline.isEmpty() || pipeline in listOf("text-generation", "image-text-to-text")) { "This repository is not a chat text model." }
-            val generic = textFiles.filterNot { Regex("(mediatek|qualcomm|npu|hexagon|exynos)", RegexOption.IGNORE_CASE).containsMatchIn(it) }
+            val generic = textFiles.filter(::isGenericTextModel)
             val candidates = (link.file?.let { selected -> listOf(selected).also { require(selected in generic) { "Choose a generic CPU-compatible .litertlm model." } } } ?: generic)
                 .map { file(link.repo, ModelRole.TEXT, it, link.revision) }
             val chosen = candidates.minByOrNull { it.size } ?: error("This repository only provides device-specific models. Choose a CPU-compatible LiteRT-LM model.")

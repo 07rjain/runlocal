@@ -37,6 +37,7 @@ class MainActivity : Activity() {
     private lateinit var engine: TextRuntime
     private lateinit var imageStore: ImageStore
     private lateinit var phoneLibrary: PhoneModelLibrary
+    private lateinit var modelTimings: ModelTimings
     private var lastPhoneAutoScan = 0L
     private var imagePane: ModelSetupView? = null
     private var pendingModelRole: String? = null
@@ -96,12 +97,30 @@ class MainActivity : Activity() {
     private var speechState = ""
     private var speechOwner = ""
     private var speechLaunch = 0
+    private var speechTiming: Pair<String, Long>? = null
     private var sendControl: FrameLayout? = null
     private var libraryStatus: TextView? = null
     private var modelFilter = "All"
     private var modelSheet: android.app.Dialog? = null
+    private var refreshCatalogEntry: (() -> Unit)? = null
+    private var refreshCatalogPage: ((Boolean) -> Unit)? = null
+    private val catalogWorker = Executors.newSingleThreadExecutor()
+    private val catalogRepository by lazy {
+        val cacheName = "catalog-${BuildConfig.RELEASE_REPOSITORY.replace('/', '%')}.json"
+        CatalogRepository(File(filesDir, cacheName), { assets.open(CatalogRepository.ASSET) }) {
+            CatalogRepository.fetch(BuildConfig.RELEASE_REPOSITORY)
+        }
+    }
+    private var catalogModels: List<CatalogModel>? = null
+    private var catalogRefreshInProgress = false
+    private var lastCatalogRefresh: Long? = null
+    private var catalogMessage = ""
+    private var pendingCatalogSetup: Pair<String, Long>? = null
     private var renderedChatId = ""
-    private var speechDownloading = false
+    private var speechDownloadSpec: SpeechModelSpec? = null
+    private val speechDownloadId get() = speechDownloadSpec?.id
+    private var interruptedSpeechDownloadId: String? = null
+    private val speechDownloading get() = speechDownloadId != null
     private val speechDownloadCancelled = java.util.concurrent.atomic.AtomicBoolean(false)
     private val speechSetupWorker = Executors.newSingleThreadExecutor()
 
@@ -111,9 +130,14 @@ class MainActivity : Activity() {
         store = ModelStore(this)
         imageStore = ImageStore(this)
         phoneLibrary = PhoneModelLibrary(this)
+        modelTimings = ModelTimings(this)
         speechModels = SpeechModelStore(this)
         speechClient = SpeechClient(this) { state, message ->
             if (!destroyed) {
+                if (state == "playing") speechTiming?.let { (id, startedAt) ->
+                    modelTimings.record(id, SystemClock.elapsedRealtime() - startedAt)
+                }
+                if (state != "generating") speechTiming = null
                 speechState = state
                 speechActive = state in listOf("generating", "playing")
                 updateSpeechStatus(message)
@@ -265,7 +289,7 @@ class MainActivity : Activity() {
         else {
             val profile = imageStore.configuredProfiles().firstOrNull()
             if (profile != null) { imageStore.selectLocalProfile(profile); mode = "Image"; bindSelectedModel() }
-            else SpeechModelCatalog.models.firstOrNull { speechModels.installed(it) }?.let {
+            else speechModels.recipes().firstOrNull { it.voices.isNotEmpty() && speechModels.installed(it) }?.let {
                 speechModels.selectedId = it.id; mode = "Speech"; bindSelectedModel()
             }
         }
@@ -316,11 +340,16 @@ class MainActivity : Activity() {
 
     private fun libraryEntries(): List<LibraryEntry> = buildList {
         store.models().forEach { model ->
-            add(LibraryEntry("text:${model.id}", model.name, LibraryKind.TEXT, "${size(model.size)} · LiteRT-LM", model.size))
+            val runtime = if (model.file.extension == "gguf") "llama.cpp" else "LiteRT-LM"
+            add(LibraryEntry("text:${model.id}", model.name, LibraryKind.TEXT, "${size(model.size)} · $runtime", model.size))
         }
-        SpeechModelCatalog.models.filter { speechModels.installed(it) }.forEach { spec ->
+        speechModels.recipes().filter { it.voices.isNotEmpty() && speechModels.installed(it) }.forEach { spec ->
             add(LibraryEntry("speech:${spec.id}", spec.title, LibraryKind.VOICE,
                 "${spec.voices.joinToString { it.name }} · ${size(spec.downloadBytes)}", spec.downloadBytes))
+        }
+        speechModels.recipes().filter { it.voices.isEmpty() && speechModels.installed(it) }.forEach { spec ->
+            val kind = if (RecipeAdapter.forBackend(spec.backend)?.task == ModelTask.OCR) LibraryKind.OCR else LibraryKind.TRANSCRIPTION
+            add(LibraryEntry("recipe:${spec.id}", spec.title, kind, "${size(spec.downloadBytes)} · On-device", spec.downloadBytes))
         }
         imageStore.configuredProfiles().forEach { profile ->
             val files = (imageStore.roles(profile) + ModelRole.LORA).mapNotNull { imageStore.assigned(it, profile) }.distinctBy { it.id }
@@ -343,10 +372,11 @@ class MainActivity : Activity() {
             LibraryKind.IMAGE -> runCatching {
                 imageStore.selectLocalProfile(entry.key.removePrefix("image:")); mode = "Image"; bindSelectedModel(); navigate("Chat")
             }.onFailure { notice("Could not select model", it.message.orEmpty()) }
-            LibraryKind.VOICE -> chooseSpeechVoice(SpeechModelCatalog.find(entry.key.removePrefix("speech:")))
+            LibraryKind.VOICE -> chooseSpeechVoice(speechModels.find(entry.key.removePrefix("speech:")))
+            LibraryKind.TRANSCRIPTION -> useInstalledRecipe(speechModels.find(entry.key.removePrefix("recipe:")))
             LibraryKind.OCR -> {
-                navigate("Chat")
-                readImageText()
+                if (entry.key == "ocr:mirage") { navigate("Chat"); readImageText() }
+                else useInstalledRecipe(speechModels.find(entry.key.removePrefix("recipe:")))
             }
         }
     }
@@ -367,14 +397,14 @@ class MainActivity : Activity() {
     private fun showModelPicker() {
         saveDraft()
         showPanel("Choose a model") { panel, dialog ->
-            val entries = libraryEntries().filterNot { it.kind == LibraryKind.OCR }
+            val entries = libraryEntries().filter { it.kind in listOf(LibraryKind.TEXT, LibraryKind.VOICE, LibraryKind.IMAGE) }
             if (entries.isEmpty()) add(panel, text("Add your first model to get started.", 14f, muted), top = 8)
-            LibraryKind.entries.filterNot { it == LibraryKind.OCR }.forEach { kind ->
+            listOf(LibraryKind.TEXT, LibraryKind.VOICE, LibraryKind.IMAGE).forEach { kind ->
                 val models = entries.filter { it.kind == kind }
                 if (models.isNotEmpty()) add(panel, label(if (kind == LibraryKind.TEXT) "Text chat" else if (kind == LibraryKind.VOICE) "Text to speech" else "Image generation"), top = 18)
                 models.forEach { entry ->
                     if (kind == LibraryKind.VOICE) {
-                        val spec = SpeechModelCatalog.find(entry.key.removePrefix("speech:"))
+                        val spec = speechModels.find(entry.key.removePrefix("speech:"))
                         spec.voices.forEach { voice ->
                             add(panel, pickerRow("${spec.title} · ${voice.name}", voice.language, chat.model == speechChatKey(spec, voice)) {
                                 dialog.dismiss(); selectSpeechModel(spec, voice)
@@ -389,8 +419,11 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun pickerRow(title: String, detail: String, selected: Boolean = false, action: () -> Unit): View = row().apply {
+    private fun pickerRow(title: String, detail: String, selected: Boolean = false, icon: String? = null, action: () -> Unit): View = row().apply {
         setPadding(dp(14), dp(12), dp(12), dp(12)); minimumHeight = dp(64)
+        if (icon != null) addView(Symbol(icon, green).apply {
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }, LinearLayout.LayoutParams(dp(22), dp(22)).apply { marginEnd = dp(14) })
         val copy = column()
         add(copy, text(title, 15f, ink, true)); add(copy, text(detail, 12f, muted), top = 4)
         addView(copy, LinearLayout.LayoutParams(0, -2, 1f))
@@ -398,13 +431,17 @@ class MainActivity : Activity() {
         clickable(this, if (selected) pale else paper, 16, action)
     }
 
-    private fun showPanel(title: String, content: (LinearLayout, android.app.Dialog) -> Unit) {
+    private fun showPanel(title: String, back: (() -> Unit)? = null, content: (LinearLayout, android.app.Dialog) -> Unit) {
         modelSheet?.dismiss()
+        imagePane = null
+        refreshCatalogEntry = null
+        refreshCatalogPage = null
         val dialog = android.app.Dialog(this)
         modelSheet = dialog
         val panel = column().apply { setPadding(dp(20), dp(12), dp(20), dp(24)); background = shape(Color.WHITE, 24) }
         val heading = row()
-        heading.addView(text(title, 22f, ink, true), LinearLayout.LayoutParams(0, -2, 1f))
+        if (back != null) heading.addView(iconButton("back", "Go back", action = back), LinearLayout.LayoutParams(dp(48), dp(48)))
+        heading.addView(text(title, 22f, ink, true).apply { isAccessibilityHeading = true }, LinearLayout.LayoutParams(0, -2, 1f))
         heading.addView(iconButton("close", "Close $title") { dialog.dismiss() }, LinearLayout.LayoutParams(dp(48), dp(48)))
         add(panel, heading)
         val contents = column().apply { setPadding(0, dp(4), 0, dp(8)) }
@@ -413,7 +450,14 @@ class MainActivity : Activity() {
         val scroll = ScrollView(this).apply { isFillViewport = false; addView(contents) }
         panel.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         dialog.setContentView(panel)
-        dialog.setOnDismissListener { if (modelSheet === dialog) { modelSheet = null; imagePane = null } }
+        dialog.setOnDismissListener {
+            if (modelSheet === dialog) {
+                modelSheet = null
+                imagePane = null
+                refreshCatalogEntry = null
+                refreshCatalogPage = null
+            }
+        }
         dialog.window?.apply {
             setBackgroundDrawableResource(android.R.color.transparent)
             setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
@@ -471,6 +515,10 @@ class MainActivity : Activity() {
         getSharedPreferences("processing", MODE_PRIVATE).getString(chat.model, null))
 
     private fun showProcessorPicker() {
+        if (store.models().any { "text:${it.id}" == chat.model && it.file.extension == "gguf" }) {
+            notice("CPU processing", "This GGUF model runs on CPU through llama.cpp.")
+            return
+        }
         if (busy || imageStore.running()) { toast("Wait for the current operation to finish before changing processors."); return }
         val modelKey = chat.model
         val selected = selectedProcessor()
@@ -493,7 +541,7 @@ class MainActivity : Activity() {
     private fun chatPage() {
         val isImage = chat.model.startsWith("image:")
         val isSpeech = chat.model.startsWith("speech:")
-        val voiceSelection = speechChatSelection(chat.model)
+        val voiceSelection = speechChatSelection(chat.model, speechModels.recipes())
         val top = row().apply { setPadding(dp(12), dp(4), dp(12), dp(8)) }
         top.addView(iconButton("history", "Chat history") { showHistory() }, LinearLayout.LayoutParams(dp(48), dp(48)))
         val model = column().apply { setPadding(dp(12), dp(6), dp(8), dp(6)) }
@@ -669,8 +717,11 @@ class MainActivity : Activity() {
 
     private fun showComposerTools(isImage: Boolean) {
         val actions = mutableListOf<Pair<String, () -> Unit>>()
-        if (MirageModel.supportedAbi) actions.add("Extract text from an image" to { readImageText() })
-        if (isImage && chat.model == "image:sd15") {
+        if (MirageModel.supportedAbi || installedRecipes(ModelTask.OCR).isNotEmpty())
+            actions.add("Extract text from an image" to { chooseOcr() })
+        if (installedRecipes(ModelTask.DICTATE).isNotEmpty())
+            actions.add("Transcribe an audio file" to { chooseTranscription() })
+        if (isImage && chat.model in listOf("image:sd15", "image:sdxl")) {
             actions.add("Attach starting image" to { chooseStartingImage() })
             if (!getSharedPreferences("image-ui", MODE_PRIVATE).getString("input", "").isNullOrEmpty()) actions.add("Remove starting image" to {
                 getSharedPreferences("image-ui", MODE_PRIVATE).edit().remove("input").apply(); toast("Starting image removed.")
@@ -690,13 +741,39 @@ class MainActivity : Activity() {
     }
 
     @Suppress("DEPRECATION")
-    private fun openOcr(targetChat: String? = null) {
+    private fun openOcr(targetChat: String? = null, download: Boolean = false, recipeId: String? = null) {
         startActivityForResult(Intent(this, OcrActivity::class.java).apply {
             if (targetChat != null) putExtra(OcrActivity.CHAT_ID, targetChat)
+            if (download) putExtra(OcrActivity.START_DOWNLOAD, true)
+            if (recipeId != null) putExtra(OcrActivity.RECIPE_ID, recipeId)
         }, OcrActivity.REQUEST)
     }
 
-    private fun readImageText() {
+    private fun installedRecipes(task: ModelTask) = speechModels.recipes().filter {
+        RecipeAdapter.forBackend(it.backend)?.task == task && speechModels.installed(it)
+    }
+
+    private fun chooseOcr() {
+        val choices = installedRecipes(ModelTask.OCR)
+        if (choices.isEmpty()) { readImageText(); return }
+        val titles = choices.map { it.title } + if (MirageModel.supportedAbi) listOf(MirageModel.title) else emptyList()
+        AlertDialog.Builder(this).setTitle("Choose an OCR model").setItems(titles.toTypedArray()) { _, index ->
+            readImageText(recipe = choices.getOrNull(index))
+        }.show()
+    }
+
+    private fun chooseTranscription() {
+        val choices = installedRecipes(ModelTask.DICTATE)
+        AlertDialog.Builder(this).setTitle("Choose a transcription model")
+            .setItems(choices.map { it.title }.toTypedArray()) { _, index -> readImageText(recipe = choices[index]) }.show()
+    }
+
+    private fun useInstalledRecipe(spec: SpeechModelSpec) {
+        if (spec.voices.isNotEmpty()) chooseSpeechVoice(spec)
+        else { navigate("Chat"); readImageText(recipe = spec) }
+    }
+
+    private fun readImageText(download: Boolean = false, recipe: SpeechModelSpec? = null) {
         if (busy || speechActive || imageStore.running()) {
             toast("Wait for the current operation to finish.")
             return
@@ -704,7 +781,8 @@ class MainActivity : Activity() {
         val origin = chat.id
         saveDraft()
         busy = true
-        busyMessage = "Preparing offline OCR…"
+        busyMessage = if (RecipeAdapter.forBackend(recipe?.backend.orEmpty())?.task == ModelTask.DICTATE)
+            "Preparing offline transcription…" else "Preparing offline OCR…"
         render()
         worker.execute {
             val release = runCatching { engine.close() }
@@ -713,7 +791,7 @@ class MainActivity : Activity() {
                 busy = false
                 render()
                 release.onFailure { notice("Could not release the text model", it.message.orEmpty()); return@runOnUiThread }
-                if (screen == "Chat" && chat.id == origin) openOcr(origin)
+                if (screen == "Chat" && chat.id == origin) openOcr(origin, download, recipe?.id)
             }
         }
     }
@@ -812,7 +890,7 @@ class MainActivity : Activity() {
         val family = chat.model.removePrefix("image:")
         runCatching {
             val prefs = getSharedPreferences("image-ui", MODE_PRIVATE)
-            val input = if (family == "sd15") prefs.getString("input", "").orEmpty() else ""
+            val input = if (family != "moss") prefs.getString("input", "").orEmpty() else ""
             val resolution = prefs.getInt("resolution_$family", 256)
             val request = imageStore.request(prompt, prefs.getString("negative", "").orEmpty(), resolution, resolution,
                 prefs.getString("steps_$family", if (family == "moss") "50" else "20").orEmpty().toInt(),
@@ -845,6 +923,7 @@ class MainActivity : Activity() {
             render()
         }
         imagePane?.refreshJob()
+        refreshCatalogEntry?.invoke()
         libraryStatus?.apply {
             text = modelSetupSummary(); visibility = if (text.isBlank()) View.GONE else View.VISIBLE
         }
@@ -921,6 +1000,9 @@ class MainActivity : Activity() {
                 saveDraft()
                 result.onSuccess { response ->
                     chats.finish(chatId, replyId, response, metrics = metrics)
+                    if (ModelTimings.isCatalogFile(ModelRole.TEXT, model.id)) metrics?.firstTextMs?.let {
+                        modelTimings.record("${model.id}-${processor.name}", it.toLong())
+                    }
                     reloadChat()
                     toast("Generated locally. Tap the reply’s timing for performance details.")
                 }.onFailure { error ->
@@ -943,32 +1025,366 @@ class MainActivity : Activity() {
         setupAction = { action, url -> startModelSetup(action, url) })
 
     private fun showAddModel() {
+        refreshModelCatalog()
         showPanel("Add a model") { panel, dialog ->
-            val setup = setupView()
-            imagePane = setup; add(panel, setup)
-            add(panel, label("Supported voice models"), top = 28)
-            SpeechModelCatalog.models.forEach { spec ->
-                add(panel, pickerRow(spec.title, "${spec.voices.joinToString { it.name }} · ${size(spec.downloadBytes)}", speechModels.installed(spec)) {
-                    dialog.dismiss(); showSpeechModelDetails(spec)
-                }, top = 10)
+            add(panel, text("What would you like to do?", 15f, muted), top = 4)
+            ModelTask.entries.forEach { task ->
+                add(panel, pickerRow(task.title, task.description, icon = task.icon) { showCatalogTask(task) }, top = 8)
             }
-            if (MirageModel.supportedAbi) {
-                add(panel, label("Offline OCR"), top = 28)
-                add(panel, pickerRow(MirageModel.title, "${size(MirageModel.size)} · Printed Latin-script text",
-                    MirageModel.installed(this)) {
-                    dialog.dismiss(); openOcr()
-                }, top = 10)
+            if (modelSetupSummary().isNotBlank()) {
+                add(panel, pickerRow("Model download", modelSetupSummary()) { showCurrentDownload() }, top = 16)
             }
-            add(panel, label("From your phone"), top = 28)
+            if (BuildConfig.RELEASE_REPOSITORY.isNotBlank()) {
+                val refresh = button("Refresh catalog", false) { refreshModelCatalog(manual = true) }
+                add(panel, refresh, top = 16)
+                val status = text("", 12f, muted).apply { accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE }
+                add(panel, status, top = 6)
+                refreshCatalogPage = {
+                    status.text = catalogMessage.ifBlank { "The catalog checks for changes on GitHub when opened." }
+                    refresh.isEnabled = !catalogRefreshInProgress
+                }
+                refreshCatalogPage?.invoke(false)
+            }
+            add(panel, text("Other ways to add a model", 15f, ink, true), top = 24)
+            add(panel, pickerRow("Paste a Hugging Face link", "Set up a supported model or adapter") { showLinkSetup() }, top = 10)
             add(panel, pickerRow("Import model files", "Choose downloaded files") { dialog.dismiss(); chooseLocalModelFiles() }, top = 10)
             add(panel, pickerRow("Connect a model folder", "Find models in a shared folder") { dialog.dismiss(); chooseModelFolder() }, top = 8)
         }
     }
 
+    private fun currentCatalog(): List<CatalogModel> =
+        catalogModels ?: catalogRepository.load().also { catalogModels = it }
+
+    private fun refreshModelCatalog(manual: Boolean = false) {
+        if (BuildConfig.RELEASE_REPOSITORY.isBlank() || catalogRefreshInProgress) return
+        val now = SystemClock.elapsedRealtime()
+        if (!manual && lastCatalogRefresh?.let { now - it < 60_000 } == true) return
+        val current = currentCatalog()
+        lastCatalogRefresh = now
+        catalogRefreshInProgress = true
+        catalogMessage = "Checking GitHub for catalog changes…"
+        refreshCatalogPage?.invoke(false)
+        catalogWorker.execute {
+            val result = runCatching { catalogRepository.refresh() }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                catalogRefreshInProgress = false
+                val updated = result.getOrNull()
+                if (updated != null) catalogModels = updated
+                result.onFailure { android.util.Log.w("RunLocal", "Catalog refresh failed", it) }
+                catalogMessage = if (updated != null) "Catalog is up to date."
+                    else "Couldn’t refresh. Showing the saved catalog."
+                refreshCatalogPage?.invoke(updated != null && updated != current)
+                refreshCatalogEntry?.invoke()
+            }
+        }
+    }
+
+    private fun showLinkSetup() = showPanel("From Hugging Face", back = ::showAddModel) { panel, _ ->
+        val setup = setupView()
+        imagePane = setup
+        add(panel, setup)
+    }
+
+    private fun showCurrentDownload() {
+        val setup = imageStore.setup()
+        val models = currentCatalog()
+        val shared = models.find { it.matchesCatalogDownload(setup) }
+        val speech = speechDownloadSpec ?: speechModels.recipes().firstOrNull {
+            !downloadsInProgress(setup) && !speechModels.installed(it) &&
+                (speechHasPartial(it) || it.id == interruptedSpeechDownloadId)
+        }
+        when {
+            speech != null -> {
+                val listed = models.find { it.recipeId == speech.id }
+                if (listed != null) showCatalogEntry(listed) else showSpeechModelDetails(speech)
+            }
+            shared != null -> showCatalogEntry(shared)
+            // Even an entry removed during setup can finish from its persisted plan.
+            else -> showLinkSetup()
+        }
+    }
+
+    private fun CatalogModel.matchesCatalogDownload(setup: JSONObject): Boolean =
+        id == setup.optString("catalogId") && downloadKey != null && downloadKey == setup.optString("catalogKey").ifBlank {
+            // Older in-progress downloads stored the plan without a separate file key.
+            runCatching { ModelSetupPlan.fromJson(setup.getString("plan")).files.single().key }.getOrNull().orEmpty()
+        }
+
+    private fun isListed(model: CatalogModel): Boolean = currentCatalog().any { entry ->
+        entry.id == model.id && entry.downloadKey == model.downloadKey
+    }
+
+    private data class CatalogState(
+        val installed: Boolean, val fit: FitLevel, val remaining: Long, val availability: String? = null
+    )
+
+    private fun catalogDevice(): CatalogDevice {
+        val memory = ActivityManager.MemoryInfo().also { getSystemService(ActivityManager::class.java).getMemoryInfo(it) }
+        return CatalogDevice(memory.totalMem, memory.availMem, memory.lowMemory, StatFs(filesDir.path).availableBytes)
+    }
+
+    private fun catalogState(model: CatalogModel, device: CatalogDevice): CatalogState {
+        val installed = when (val source = model.source) {
+            is CatalogSource.Download -> {
+                val file = source.plan.files.single()
+                if (model.task == ModelTask.CHAT) store.cached(file) != null
+                else imageStore.assigned(file.role, source.plan.family)?.remoteKey == file.key &&
+                    imageStore.cached(file) != null && imageStore.assigned(ModelRole.LORA, source.plan.family) == null
+            }
+            is CatalogSource.Speech -> speechModels.installed(source.spec)
+            CatalogSource.Mirage -> MirageModel.installed(this)
+            CatalogSource.Dictation -> false
+        }
+        val availability = when (model.source) {
+            CatalogSource.Mirage -> if (MirageModel.supportedAbi) null else "Requires an ARM64 Android build"
+            CatalogSource.Dictation -> if (SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) null
+                else "No on-device recognizer available"
+            else -> null
+        }
+        val remaining = if (installed) 0L else when (val source = model.source) {
+            is CatalogSource.Download -> imageStore.remainingDownloadBytes(source.plan)
+            is CatalogSource.Speech -> speechModels.remainingDownloadBytes(source.spec)
+            CatalogSource.Mirage -> MirageModel.remainingDownloadBytes(this)
+            CatalogSource.Dictation -> 0L
+        }
+        return CatalogState(installed, device.fit(model, remaining, availability == null, installed), remaining, availability)
+    }
+
+    private fun fitLabel(state: CatalogState): String = when (state.fit) {
+        FitLevel.GOOD -> "Estimated good fit"
+        FitLevel.TIGHT -> "RAM may be tight"
+        FitLevel.NEEDS_STORAGE -> "Needs more storage"
+        FitLevel.LOW_RAM -> "Needs more RAM"
+        FitLevel.UNAVAILABLE -> state.availability.orEmpty()
+    }
+
+    private fun showCatalogTask(task: ModelTask) = showPanel(task.title, back = ::showAddModel) { panel, _ ->
+        val cards = column()
+        add(panel, cards)
+        refreshCatalogPage = { changed -> if (changed) showCatalogCards(task, cards) }
+        showCatalogCards(task, cards)
+    }
+
+    private fun showCatalogCards(task: ModelTask, panel: LinearLayout) {
+        panel.removeAllViews()
+        val device = catalogDevice()
+        val setup = imageStore.setup()
+        val sharedDownloadBusy = downloadsInProgress(setup) || waitingForCatalogSetup(setup)
+        val entries = currentCatalog().filter { it.task == task }.map { it to catalogState(it, device) }
+            .sortedWith(compareBy({ it.second.fit }, { it.first.downloadBytes }))
+        val recommended = entries.firstOrNull { (_, state) -> state.fit == FitLevel.GOOD }?.first
+        val phone = "${Build.MANUFACTURER} ${Build.MODEL}".let {
+            if (Build.MODEL.startsWith(Build.MANUFACTURER, ignoreCase = true)) Build.MODEL else it
+        }
+        add(panel, text(phone, 15f, ink, true), top = 2)
+        add(panel, text("${catalogSize(device.totalRam)} RAM  ·  ${catalogSize(device.freeStorage)} free storage", 13f, muted), top = 4)
+        if (entries.isEmpty()) {
+            add(panel, text("There are no catalog models for this task right now.", 15f, muted), top = 20)
+        }
+        entries.forEach { (model, state) ->
+            val status = when {
+                state.installed -> "Installed"
+                model.source == CatalogSource.Dictation -> "Built in"
+                else -> catalogSize(model.downloadBytes)
+            }
+            val facts = listOfNotNull(status, fitLabel(state).takeUnless {
+                model.source == CatalogSource.Dictation && state.availability == null
+            }, "Experimental".takeIf { model.experimental })
+            val card = column().apply {
+                setPadding(dp(14), dp(12), dp(14), dp(12))
+                background = shape(paper, 14, line)
+            }
+            if (model == recommended && entries.size > 1) {
+                add(card, text("Recommended for this phone", 12f, green, true))
+            }
+            add(card, text(model.title, 17f, ink, true), top = 3)
+            add(card, text(model.summary, 14f, ink), top = 4)
+            add(card, text(facts.joinToString("  ·  "), 12f, muted), top = 8)
+            if (model == recommended && entries.size > 1) {
+                add(card, text("Smallest download among the models with an estimated good fit.", 12f, muted), top = 4)
+            }
+            val buttons = row()
+            val sharedState = setup.takeIf { model.matchesCatalogDownload(it) }?.optString("state")
+            val action = catalogAction(model, state, sharedState)
+            val running = (sharedState in listOf("resolving", "downloading", "verifying")) || model.recipeId == speechDownloadId && speechDownloadId != null
+            val blocked = when (model.source) {
+                is CatalogSource.Download -> sharedDownloadBusy
+                is CatalogSource.Speech -> speechDownloading
+                else -> false
+            }
+            if (action != null && (!blocked || state.installed) && !running) {
+                buttons.addView(button(action) {
+                    if (state.installed || model.source == CatalogSource.Dictation) {
+                        modelSheet?.dismiss()
+                        useCatalogModel(model)
+                    } else showCatalogEntry(model, startDownload = true)
+                }, LinearLayout.LayoutParams(0, -2, 1f))
+            }
+            buttons.addView(button(if (running) "View download" else "Details", false) { showCatalogEntry(model) }.apply {
+                contentDescription = if (running) "View ${model.title} download" else "Details for ${model.title}"
+            }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
+            add(card, buttons, top = 12)
+            add(panel, card, top = 12)
+        }
+    }
+
+    private fun catalogAction(model: CatalogModel, state: CatalogState, setupState: String?): String? = when {
+        state.fit == FitLevel.UNAVAILABLE -> null
+        state.installed || model.source == CatalogSource.Dictation -> model.task.useAction
+        state.fit == FitLevel.LOW_RAM || state.fit == FitLevel.NEEDS_STORAGE -> null
+        state.remaining == 0L && model.task == ModelTask.IMAGE -> "Use saved files"
+        state.remaining < model.downloadBytes || setupState in listOf("paused", "error") -> "Resume download"
+        else -> "Download"
+    }
+
+    private fun showCatalogEntry(model: CatalogModel, startDownload: Boolean = false) {
+        showPanel(model.title, back = { showCatalogTask(model.task) }) { panel, dialog ->
+            add(panel, text(model.summary, 15f), top = 4)
+            val hardware = text("", 13f, green, true)
+            add(panel, hardware, top = 14)
+            val status = text("", 13f, muted).apply { accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE }
+            add(panel, status, top = 6)
+            val actions = column()
+            add(panel, actions, top = 6)
+            val details = listOfNotNull(
+                model.downloadBytes.takeIf { it > 0 }?.let { "Download  ${catalogSize(it)}" },
+                model.memoryBytes?.let {
+                    if (model.task == ModelTask.OCR) "Free RAM needed  ${catalogSize(it)}"
+                    else "Estimated RAM  ${catalogSize(it)}"
+                },
+                "Processor  ${model.processor}", "License  ${model.license}",
+                "Experimental on Android".takeIf { model.experimental }
+            )
+            add(panel, text("Model details", 15f, ink, true), top = 22)
+            add(panel, text(details.joinToString("\n"), 13f, muted), top = 6)
+            val timings = catalogTimings(model)
+            if (timings.isNotEmpty()) add(panel, text("Last run on this phone\n${timings.joinToString("\n")}", 13f, ink), top = 12)
+            model.modelUrl?.let { url -> add(panel, button("Model source and license", false) { openUrl(url) }, top = 12) }
+
+            var lastAction: String? = null
+            val refresh = {
+                val device = catalogDevice()
+                val state = catalogState(model, device)
+                val setup = imageStore.setup()
+                val shared = setup.takeIf { model.matchesCatalogDownload(it) }
+                val voiceActive = model.recipeId == speechDownloadId && speechDownloadId != null
+                val remoteActive = shared?.optString("state") in listOf("downloading", "verifying", "resolving")
+                val starting = model.source is CatalogSource.Download && waitingForCatalogSetup(setup)
+                val anotherActive = when (model.source) {
+                    is CatalogSource.Download -> downloadsInProgress(setup) && !remoteActive
+                    is CatalogSource.Speech -> speechDownloading && !voiceActive
+                    else -> false
+                }
+                val listed = isListed(model)
+                val fit = if (state.installed) "Installed  ·  ${fitLabel(state)}"
+                    else if (model.source == CatalogSource.Dictation && state.availability == null) "Built in  ·  On-device recognizer available"
+                    else fitLabel(state)
+                if (hardware.text.toString() != fit) hardware.text = fit
+                val message = when {
+                    voiceActive -> speechStatus
+                    remoteActive -> modelDownloadProgress(checkNotNull(shared))
+                    !listed && !state.installed -> "This entry changed. Go back to see the latest catalog."
+                    starting -> "Preparing the model download…"
+                    state.fit == FitLevel.NEEDS_STORAGE ->
+                        "Free at least ${catalogSize(state.remaining + model.storageReserve + 1 - device.freeStorage)} more storage."
+                    state.fit == FitLevel.LOW_RAM -> "This model exceeds the app’s memory budget for this phone."
+                    model.source == CatalogSource.Dictation && state.availability != null ->
+                        "Install an offline recognition service and language pack in Android’s speech settings."
+                    !state.installed && shared?.optString("state") in listOf("paused", "error") -> shared?.optString("message").orEmpty()
+                    model.recipeId == interruptedSpeechDownloadId && interruptedSpeechDownloadId != null && !state.installed && speechStatus.startsWith("Speech download") -> speechStatus
+                    anotherActive && !state.installed ->
+                        "Wait for the current model download or pause it in Models."
+                    state.fit == FitLevel.TIGHT -> "Close other apps before running this model."
+                    model.task == ModelTask.SPEAK && !state.installed -> "Keep RunLocal open during the download."
+                    else -> ""
+                }
+                if (status.text.toString() != message) status.text = message
+                status.visibility = if (message.isBlank()) View.GONE else View.VISIBLE
+                val action = when {
+                    voiceActive || remoteActive -> "Pause download"
+                    !listed && !state.installed -> null
+                    !state.installed && model.source != CatalogSource.Dictation && (starting || anotherActive) -> null
+                    else -> catalogAction(model, state, shared?.optString("state"))
+                }
+                if (action != lastAction) {
+                    lastAction = action
+                    actions.removeAllViews()
+                    if (action != null) {
+                        add(actions, button(action, primary = !voiceActive && !remoteActive) {
+                            when {
+                                voiceActive -> pauseSpeechDownload()
+                                remoteActive -> startModelSetup(ModelDownloadService.PAUSE, null)
+                                state.installed || model.source == CatalogSource.Dictation -> { dialog.dismiss(); useCatalogModel(model) }
+                                else -> downloadCatalogModel(model, dialog)
+                            }
+                        })
+                    }
+                }
+            }
+            refreshCatalogEntry = refresh
+            refresh()
+        }
+        if (startDownload) modelSheet?.let { dialog -> downloadCatalogModel(model, dialog) }
+    }
+
+    private fun downloadCatalogModel(model: CatalogModel, dialog: android.app.Dialog) {
+        if (!isListed(model)) {
+            toast("This model changed in the catalog.")
+            showCatalogTask(model.task)
+            return
+        }
+        when (val source = model.source) {
+            is CatalogSource.Download -> {
+                val plan = source.plan
+                val file = plan.files.single()
+                val assigned = if (model.task == ModelTask.IMAGE) imageStore.assigned(file.role, plan.family) else null
+                if (assigned != null && (assigned.remoteKey != file.key || imageStore.assigned(ModelRole.LORA, plan.family) != null)) {
+                    AlertDialog.Builder(this).setTitle("Switch to ${model.title}?")
+                        .setMessage("RunLocal will select this model for new Stable Diffusion chats. Your saved files and existing image chats are kept.")
+                        .setNegativeButton("Keep current setup", null)
+                        .setPositiveButton("Switch model") { _, _ -> startModelSetup(ModelDownloadService.CATALOG, null, model) }
+                        .show()
+                } else startModelSetup(ModelDownloadService.CATALOG, null, model)
+            }
+            is CatalogSource.Speech -> downloadSpeechModel(source.spec)
+            CatalogSource.Mirage -> { dialog.dismiss(); navigate("Chat"); readImageText(download = true) }
+            CatalogSource.Dictation -> Unit
+        }
+    }
+
+    private fun useCatalogModel(model: CatalogModel) {
+        when (val source = model.source) {
+            is CatalogSource.Download -> {
+                val key = if (model.task == ModelTask.CHAT) "text:${source.plan.files.single().key}" else "image:${source.plan.family}"
+                libraryEntries().find { it.key == key }?.let(::useLibraryEntry)
+                    ?: toast("This model is no longer installed.")
+            }
+            is CatalogSource.Speech -> useInstalledRecipe(source.spec)
+            CatalogSource.Mirage -> { navigate("Chat"); readImageText() }
+            CatalogSource.Dictation -> { navigate("Chat"); startListening() }
+        }
+    }
+
+    private fun catalogTimings(model: CatalogModel): List<String> = when (val source = model.source) {
+        is CatalogSource.Download -> if (model.task == ModelTask.CHAT) ProcessingBackend.entries.mapNotNull { backend ->
+            modelTimings.last("${source.plan.files.single().key}-${backend.name}")?.let {
+                "First text on ${backend.name} in ${seconds(it.toDouble())}"
+            }
+        } else listOfNotNull(model.downloadKey?.let(modelTimings::last)?.let { "Image generated in ${seconds(it.toDouble())}" })
+        is CatalogSource.Speech -> listOfNotNull(modelTimings.last(source.spec.id)?.let {
+            "${if (model.task == ModelTask.SPEAK) "Playback started in" else "Completed in"} ${seconds(it.toDouble())}"
+        })
+        CatalogSource.Mirage -> listOfNotNull(modelTimings.last(model.id)?.let { "Image read in ${seconds(it.toDouble())}" })
+        CatalogSource.Dictation -> listOfNotNull(modelTimings.last(model.id)?.let { "Transcript ready ${seconds(it.toDouble())} after speaking" })
+    }
+
     private fun showSpeechModelDetails(spec: SpeechModelSpec) {
         showPanel(spec.title) { panel, dialog ->
             val installed = speechModels.installed(spec)
-            add(panel, text("Text to speech · ${spec.voices.joinToString { it.name }} · English", 14f, muted), top = 8)
+            val languages = spec.voices.map { it.language }.distinct().joinToString()
+            if (spec.voices.isNotEmpty())
+                add(panel, text("Text to speech · ${spec.voices.joinToString { it.name }} · $languages", 14f, muted), top = 8)
             add(panel, text("${size(spec.downloadBytes)} download · runs on this phone", 13f, muted), top = 8)
             add(panel, text(spec.licenseSummary, 13f, ink), top = 20)
             add(panel, text(spec.credit + "  ↗", 13f, green).apply {
@@ -978,7 +1394,7 @@ class MainActivity : Activity() {
             add(panel, button("Model & license  ↗", false) { openUrl(spec.modelUrl) }, top = 8)
             add(panel, button(if (installed) "Use in Chat" else if (speechDownloading) "Downloading…" else if (speechHasPartial(spec)) "Resume download" else "Download model") {
                 dialog.dismiss()
-                if (installed) chooseSpeechVoice(spec) else downloadSpeechModel(spec)
+                if (installed) useInstalledRecipe(spec) else downloadSpeechModel(spec)
             }.apply { isEnabled = installed || !speechDownloading }, top = 20)
             if (installed) add(panel, button("Remove model", false) { dialog.dismiss(); removeSpeechModel(spec) }, top = 8)
             else add(panel, text("Downloads can use mobile data. Keep RunLocal open; interrupted downloads can be resumed.", 12f, muted), top = 12)
@@ -997,26 +1413,33 @@ class MainActivity : Activity() {
     }
 
     private fun manageLibraryEntry(entry: LibraryEntry) {
+        if (entry.key.startsWith("recipe:")) {
+            showSpeechModelDetails(speechModels.find(entry.key.removePrefix("recipe:")))
+            return
+        }
         val actions = when (entry.kind) {
             LibraryKind.VOICE -> arrayOf("Model & license", "Use in Chat", "Remove model")
             LibraryKind.OCR -> arrayOf("Model & license", "Use in Chat", "Manage download")
             LibraryKind.TEXT -> arrayOf("Model details", "Use in Chat", "Remove model")
             LibraryKind.IMAGE -> arrayOf("Model details", "Use in Chat", "Remove model files…")
+            LibraryKind.TRANSCRIPTION -> return
         }
         AlertDialog.Builder(this).setTitle(entry.title).setItems(actions) { _, index ->
             when (index) {
                 0 -> when (entry.kind) {
-                    LibraryKind.VOICE -> showSpeechModelDetails(SpeechModelCatalog.find(entry.key.removePrefix("speech:")))
+                    LibraryKind.VOICE -> showSpeechModelDetails(speechModels.find(entry.key.removePrefix("speech:")))
                     LibraryKind.TEXT -> notice(entry.title, "Text chat · ${size(entry.bytes)}\nStored privately in RunLocal. Choose CPU or GPU from Chat's message tools.")
                     LibraryKind.IMAGE -> showImageFiles(entry.key.removePrefix("image:"))
                     LibraryKind.OCR -> openUrl(MirageModel.modelUrl)
+                    LibraryKind.TRANSCRIPTION -> Unit
                 }
                 1 -> useLibraryEntry(entry)
                 2 -> when (entry.kind) {
                     LibraryKind.TEXT -> store.models().firstOrNull { "text:${it.id}" == entry.key }?.let { deleteModel(it) }
-                    LibraryKind.VOICE -> removeSpeechModel(SpeechModelCatalog.find(entry.key.removePrefix("speech:")))
+                    LibraryKind.VOICE -> removeSpeechModel(speechModels.find(entry.key.removePrefix("speech:")))
                     LibraryKind.IMAGE -> showImageFiles(entry.key.removePrefix("image:"))
                     LibraryKind.OCR -> openOcr()
+                    LibraryKind.TRANSCRIPTION -> Unit
                 }
             }
         }.setNegativeButton("Close", null).show()
@@ -1028,7 +1451,7 @@ class MainActivity : Activity() {
         if (files.isEmpty()) { toast("No image files to manage."); return }
         AlertDialog.Builder(this).setTitle("Image model files")
             .setItems(files.map { "${it.name} · ${size(it.file.length())}\n${it.role.label} · tap to remove" }.toTypedArray()) { _, index -> removeImageAsset(files[index]) }
-            .setNeutralButton("Configure components") { _, _ -> showAddModel() }
+            .setNeutralButton("Configure components") { _, _ -> showLinkSetup() }
             .setNegativeButton("Close", null).show()
     }
 
@@ -1046,13 +1469,16 @@ class MainActivity : Activity() {
         val setup = imageStore.setup()
         return when {
             speechDownloading -> speechStatus
+            downloadsInProgress(setup) -> modelDownloadProgress(setup)
+            speechModels.recipes().any { !speechModels.installed(it) && speechHasPartial(it) } -> "Voice download paused · tap to resume"
             speechStatus.startsWith("Speech download") -> speechStatus
-            SpeechModelCatalog.models.any { !speechModels.installed(it) && speechHasPartial(it) } -> "Voice download paused · tap to resume"
             setup.optString("state") in listOf("resolving", "downloading", "verifying", "review", "paused", "error") ->
                 setup.optString("message").ifBlank { "Model setup · ${setup.optString("state")}" }
             else -> ""
         }
     }
+
+    private fun downloadsInProgress(setup: JSONObject) = setup.optString("state") in listOf("resolving", "downloading", "verifying")
 
     private fun speechHasPartial(spec: SpeechModelSpec) = spec.files.any {
         speechModels.file(spec, it).isFile || File(speechModels.file(spec, it).path + ".part").isFile
@@ -1069,12 +1495,10 @@ class MainActivity : Activity() {
             setPadding(dp(14), dp(12), dp(14), dp(12)); minHeight = dp(48)
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
             visibility = if (summary.isBlank()) View.GONE else View.VISIBLE
-            clickable(this, pale, 16) { showAddModel() }
+            clickable(this, pale, 16) { showCurrentDownload() }
         }
         libraryStatus?.let { add(body, it, top = 16) }
-        if (speechDownloading) add(body, button("Pause voice download", false) {
-            speechDownloadCancelled.set(true); updateSpeechStatus("Pausing speech download…")
-        }, top = 8)
+        if (speechDownloading) add(body, button("Pause voice download", false, ::pauseSpeechDownload), top = 8)
         add(body, ModelLibraryView(this, libraryEntries(), chat.model, modelFilter,
             filterChanged = { modelFilter = it; render() }, use = { useLibraryEntry(it) }, more = { manageLibraryEntry(it) },
             addModel = { showAddModel() }), top = 20)
@@ -1212,7 +1636,7 @@ class MainActivity : Activity() {
         }
     }
     private fun selectImportedImage(asset: ImageAsset, family: String) {
-        if (family in listOf("moss", "sd15") && imageStore.family != family) imageStore.family = family
+        if (family in IMAGE_PROFILES && imageStore.family != family) imageStore.family = family
         imageStore.assign(asset.role, asset)
         if (imageStore.missing().isNotEmpty()) navigate("Models") else { mode = "Image"; bindSelectedModel(); navigate("Chat") }
         if (asset.role == ModelRole.LORA && imageStore.missing().isNotEmpty()) toast("Adapter added. Add its matching base model using a Hugging Face link, or choose an existing base in Advanced.")
@@ -1325,23 +1749,44 @@ class MainActivity : Activity() {
     private fun isImageServiceRunning() = (getSystemService(ACTIVITY_SERVICE) as ActivityManager).getRunningServices(Int.MAX_VALUE)
         .any { it.service.className == ImageGenerationService::class.java.name }
 
-    private fun startModelSetup(action: String, url: String?) {
+    private fun startModelSetup(action: String, url: String?, model: CatalogModel? = null) {
         if (action == ModelDownloadService.RESOLVE) {
             if (MirageModel.matchesLink(url.orEmpty())) { modelSheet?.dismiss(); openOcr(); return }
             SpeechModelCatalog.forLink(url.orEmpty())?.let { modelSheet?.dismiss(); downloadSpeechModel(it); return }
         }
         if (busy || imageStore.running()) { toast("Wait for the current operation to finish."); return }
-        if (action != ModelDownloadService.PAUSE && imageStore.setupRunning()) return
+        val setup = imageStore.setup()
+        if (action != ModelDownloadService.PAUSE && (waitingForCatalogSetup(setup) || downloadsInProgress(setup))) {
+            toast("Wait for the current model download or pause it first.")
+            return
+        }
         if (action == ModelDownloadService.RESOLVE) {
             runCatching { ModelLink.parse(url.orEmpty()) }.onFailure { notice("Check the model link", it.message.orEmpty()); return }
         }
-        if (action in listOf(ModelDownloadService.DOWNLOAD, ModelDownloadService.RESOLVE) && Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
-            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 102)
         runCatching {
             val intent = Intent(this, ModelDownloadService::class.java).setAction(action)
             if (url != null) intent.putExtra("url", url)
+            if (model != null) {
+                check(isListed(model)) { "This model changed in the catalog. Go back and choose it again." }
+                val plan = (model.source as CatalogSource.Download).plan
+                intent.putExtra(ModelDownloadService.CATALOG_ID, model.id)
+                intent.putExtra(ModelDownloadService.CATALOG_PLAN, plan.toJson())
+            }
             startForegroundService(intent)
+            if (model != null) {
+                pendingCatalogSetup = setup.optString("id") to SystemClock.elapsedRealtime()
+                refreshCatalogEntry?.invoke()
+            }
+            if (action != ModelDownloadService.PAUSE && Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 102)
         }.onFailure { notice("Could not start setup", it.message.orEmpty()) }
+    }
+
+    private fun waitingForCatalogSetup(setup: JSONObject): Boolean {
+        val (previousId, sentAt) = pendingCatalogSetup ?: return false
+        val waiting = setup.optString("id") == previousId && SystemClock.elapsedRealtime() - sentAt < 5_000
+        if (!waiting) pendingCatalogSetup = null
+        return waiting
     }
     @Suppress("DEPRECATION")
     private fun recoverModelSetup() {
@@ -1373,19 +1818,21 @@ class MainActivity : Activity() {
     private fun notice(title: String, message: String) { if (!destroyed) AlertDialog.Builder(this).setTitle(title).setMessage(message).setPositiveButton("Got it", null).show() }
     private fun openUrl(url: String) { runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }.onFailure { toast("No browser is available on this device.") } }
 
-    private fun selectedSpeechModel(): SpeechModelSpec? = SpeechModelCatalog.models.firstOrNull { it.id == speechModels.selectedId }
+    private fun selectedSpeechModel(): SpeechModelSpec? = speechModels.recipes().firstOrNull { it.id == speechModels.selectedId }
 
     private fun updateSpeechStatus(message: String) {
         speechStatus = message
         speechStatusView?.text = message
         speechStatusView?.visibility = if (showSpeechStatus()) View.VISIBLE else View.GONE
         if (speechDownloading) libraryStatus?.text = message
+        refreshCatalogEntry?.invoke()
     }
 
     private fun showSpeechStatus() = speechActive || (speechOwner == chat.id && speechState in listOf("complete", "error"))
 
     private fun stopSpeech() {
         ++speechLaunch
+        speechTiming = null
         tts?.stop(); speechClient.stop(); speechActive = false; speechState = "stopped"
         saveDraft()
         val changed = speechTurn.event("stopped", "Speech stopped before playback. Send the text again to retry.")
@@ -1395,7 +1842,7 @@ class MainActivity : Activity() {
     }
 
     private fun showSpeechOptions() {
-        val choices = SpeechModelCatalog.models.filter { speechModels.installed(it) }
+        val choices = speechModels.recipes().filter { it.voices.isNotEmpty() && speechModels.installed(it) }
             .flatMap { spec -> spec.voices.map { spec to it } }
         val titles = listOf("Android installed offline voices") + choices.map { (spec, voice) -> "${spec.title} · ${voice.name} (${voice.language})" } + "Manage speech models…"
         val selected = choices.indexOfFirst { (spec, voice) -> spec.id == speechModels.selectedId && speechModels.voice(spec) == voice.id }
@@ -1413,30 +1860,35 @@ class MainActivity : Activity() {
 
     private fun downloadSpeechModel(spec: SpeechModelSpec) {
         if (speechDownloading) { toast("A speech model is already downloading."); return }
-        if (speechModels.installed(spec)) { chooseSpeechVoice(spec); return }
-        stopSpeech(); speechDownloading = true; speechDownloadCancelled.set(false)
+        if (speechModels.installed(spec)) { useInstalledRecipe(spec); return }
+        stopSpeech(); speechDownloadSpec = spec; interruptedSpeechDownloadId = null; speechDownloadCancelled.set(false)
         updateSpeechStatus("Downloading ${spec.title}… Keep RunLocal open.")
         saveDraft(); render()
         speechSetupWorker.execute {
             var lastUpdate = 0L
+            val eta = DownloadEta()
             val result = runCatching {
                 speechModels.install(spec, cancelled = { speechDownloadCancelled.get() || Thread.currentThread().isInterrupted }) { bytes, total, verifying ->
                     val now = SystemClock.elapsedRealtime()
+                    val remaining = if (verifying) null else eta.update(bytes, total, now)
                     if (now - lastUpdate > 250 || bytes == total) {
                         lastUpdate = now
                         runOnUiThread {
-                            if (!destroyed) updateSpeechStatus("${if (verifying) "Verifying" else "Downloading"} ${spec.title} · ${size(bytes)} of ${size(total)}")
+                            if (!destroyed && !speechDownloadCancelled.get()) updateSpeechStatus(listOfNotNull(
+                                "${if (verifying) "Verifying" else "Downloading"} ${spec.title}",
+                                "${catalogSize(bytes)} of ${catalogSize(total)}", etaLabel(remaining)).joinToString("\n"))
                         }
                     }
                 }
             }
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
-                speechDownloading = false
+                speechDownloadSpec = null
                 result.onSuccess {
                     speechModels.selectedId = spec.id
                     updateSpeechStatus("${spec.title} is ready. Choose it in Chat to speak text.")
                 }.onFailure { error ->
+                    interruptedSpeechDownloadId = spec.id
                     val paused = error is java.util.concurrent.CancellationException || speechDownloadCancelled.get()
                     updateSpeechStatus(if (paused) "Speech download paused. Tap Download to resume." else "Speech download failed: ${error.message}")
                     if (!paused) notice("Could not download speech model", error.message.orEmpty())
@@ -1444,6 +1896,11 @@ class MainActivity : Activity() {
                 saveDraft(); render()
             }
         }
+    }
+
+    private fun pauseSpeechDownload() {
+        speechDownloadCancelled.set(true)
+        updateSpeechStatus("Pausing speech download…")
     }
 
     private fun speak(value: String) {
@@ -1477,7 +1934,7 @@ class MainActivity : Activity() {
     }
 
     private fun sendSpeechPrompt() {
-        val selection = speechChatSelection(chat.model) ?: run {
+        val selection = speechChatSelection(chat.model, speechModels.recipes()) ?: run {
             notice("Voice unavailable", "Choose an installed voice model at the top of Chat."); return
         }
         val prompt = editor?.text?.toString()?.trim().orEmpty()
@@ -1491,7 +1948,7 @@ class MainActivity : Activity() {
     }
 
     private fun playSpeechReading(value: String) {
-        val selection = speechChatSelection(chat.model) ?: run {
+        val selection = speechChatSelection(chat.model, speechModels.recipes()) ?: run {
             notice("Voice unavailable", "This chat's voice model is no longer supported."); return
         }
         if (!canSpeak(selection.first, value)) return
@@ -1500,6 +1957,7 @@ class MainActivity : Activity() {
 
     private fun launchSpeech(spec: SpeechModelSpec, voice: String, value: String) {
         val ticket = ++speechLaunch
+        speechTiming = spec.id to SystemClock.elapsedRealtime()
         speechOwner = chat.id; speechState = "generating"
         speechActive = true; updateSpeechStatus("Preparing ${spec.title}…"); refreshSendControl()
         // A model selected in Chat may still own native text memory. Release it on
@@ -1526,11 +1984,15 @@ class MainActivity : Activity() {
         stopSpeech(); recognizer?.destroy()
         runCatching { recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this).apply {
             setRecognitionListener(object : RecognitionListener {
+                private var speechEndedAt: Long? = null
                 override fun onReadyForSpeech(params: Bundle?) { listening = true; refreshListenControl(); toast("Listening on your device…") }
                 override fun onBeginningOfSpeech() {}
                 override fun onRmsChanged(rmsdB: Float) {}
                 override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onEndOfSpeech() { listening = false; refreshListenControl() }
+                override fun onEndOfSpeech() {
+                    speechEndedAt = SystemClock.elapsedRealtime()
+                    listening = false; refreshListenControl()
+                }
                 override fun onError(error: Int) {
                     listening = false
                     refreshListenControl()
@@ -1546,6 +2008,7 @@ class MainActivity : Activity() {
                     refreshListenControl()
                     val value = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
                     if (value.isNotBlank()) {
+                        speechEndedAt?.let { modelTimings.record(ModelCatalog.dictationId, SystemClock.elapsedRealtime() - it) }
                         if (chat.id == targetChat) {
                             draft = value; chat.draft = value; editor?.setText(value); saveChat()
                         } else chats.get(targetChat)?.let { target ->
@@ -1582,6 +2045,7 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         uiHandler.removeCallbacks(generationHeartbeat)
         destroyed = true; modelSheet?.dismiss(); updateWorker.shutdownNow(); recognizer?.destroy(); tts?.shutdown()
+        catalogWorker.shutdownNow()
         speechDownloadCancelled.set(true); speechSetupWorker.shutdownNow(); speechClient.close()
         uiHandler.removeCallbacks(imageHealthCheck); unregisterReceiver(imageUpdates)
         worker.execute { engine.close() }; worker.shutdown()
@@ -1604,6 +2068,12 @@ class MainActivity : Activity() {
                 "history" -> { c.drawCircle(12f, 12f, 9f, paint); path(12f, 6f, 12f, 12f, 16f, 14f) }
                 "plus" -> { path(12f, 5f, 12f, 19f); path(5f, 12f, 19f, 12f) }
                 "close" -> { path(6f, 6f, 18f, 18f); path(18f, 6f, 6f, 18f) }
+                "back" -> { path(14f, 5f, 7f, 12f, 14f, 19f); path(7f, 12f, 21f, 12f) }
+                "scan" -> {
+                    path(3f, 8f, 3f, 3f, 8f, 3f); path(16f, 3f, 21f, 3f, 21f, 8f)
+                    path(21f, 16f, 21f, 21f, 16f, 21f); path(8f, 21f, 3f, 21f, 3f, 16f)
+                    path(7f, 9f, 17f, 9f); path(7f, 13f, 17f, 13f); path(7f, 17f, 13f, 17f)
+                }
                 "check" -> path(5f, 12f, 10f, 17f, 19f, 7f)
                 "chevron" -> path(9f, 5f, 16f, 12f, 9f, 19f)
                 "send" -> { path(12f, 20f, 12f, 4f); path(5f, 11f, 12f, 4f, 19f, 11f) }
