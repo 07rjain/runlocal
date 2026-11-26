@@ -157,10 +157,12 @@ svg { display: block; flex: none; width: 1.2em; height: 1.2em; stroke: currentCo
 
 .catalog { border-block: 1px solid var(--line); }
 .catalog-layout, .setup-layout { display: grid; grid-template-columns: minmax(0, .72fr) minmax(0, 1fr); gap: 1.8rem clamp(2rem, 8vw, 7.5rem); padding-block: clamp(2.5rem, 6vw, 5.5rem); }
+.catalog-layout { grid-template-columns: minmax(0, .6fr) minmax(0, 1fr); column-gap: clamp(1.75rem, 5vw, 5rem); }
+.catalog-intro h2 { text-wrap: balance; }
 .catalog-intro p { max-width: 34ch; margin-top: .85rem; color: var(--muted); }
 .catalog-intro .text-link, .setup .text-link { margin-top: .58rem; }
 .model-list { border-top: 1px solid var(--line); }
-.model-list > div { display: grid; grid-template-columns: 4.2rem minmax(0, 1fr); gap: .35rem 1rem; padding-block: .9rem; border-bottom: 1px solid var(--line); }
+.model-list > div { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr); gap: .25rem 1rem; padding-block: .9rem; border-bottom: 1px solid var(--line); }
 .model-list dt { color: var(--leaf); font-weight: 730; }
 .model-list dd p { color: var(--muted); }
 
@@ -198,6 +200,10 @@ svg { display: block; flex: none; width: 1.2em; height: 1.2em; stroke: currentCo
   h1 { font-size: clamp(2.92rem, 8.25vw, 4.2rem); }
 }
 
+@media (max-width: 700px) {
+  .catalog-layout { grid-template-columns: minmax(0, 1fr); }
+}
+
 @media (max-width: 620px) {
   .wrap { width: calc(100% - 2rem); }
   .site-header { min-height: 4.35rem; }
@@ -210,7 +216,8 @@ svg { display: block; flex: none; width: 1.2em; height: 1.2em; stroke: currentCo
   .release-link { margin-bottom: .65rem; }
   .hero-copy > p:first-of-type { margin-top: .85rem; }
   .hero-actions { margin-top: 1.05rem; }
-  .catalog-layout, .setup-layout, .support-layout { grid-template-columns: 1fr; }
+  .setup-layout, .support-layout { grid-template-columns: 1fr; }
+  .model-list > div { grid-template-columns: minmax(0, 1fr); }
   .setup h2 br { display: none; }
   .setup h2 { max-width: none; }
   .site-footer { align-items: start; flex-direction: column; padding-block: .8rem; }

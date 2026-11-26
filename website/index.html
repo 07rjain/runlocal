@@ -4,17 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>RunLocal — Offline AI for Android</title>
-  <meta name="description" content="Download RunLocal for Android. Run compatible text, image, and voice models offline, with your prompts and replies stored on your phone.">
+  <meta name="description" content="Download RunLocal for Android. Browse compatible models for offline chat, image generation, speech, transcription, and OCR.">
   <meta name="theme-color" content="#ffffff">
   <meta property="og:type" content="website">
   <meta property="og:title" content="RunLocal — Offline AI for Android">
-  <meta property="og:description" content="Download a model and use it offline. RunLocal runs text, image, and voice models on Android.">
+  <meta property="og:description" content="Download a model and use it offline. RunLocal supports chat, images, speech, transcription, and OCR on Android.">
   <meta property="og:image" content="https://07rjain.github.io/runlocal/social-card.svg">
   <link rel="canonical" href="https://07rjain.github.io/runlocal/">
   <link rel="alternate" type="text/plain" href="llms.txt" title="RunLocal guide for AI assistants">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=2">
-  <script src="release.js" defer></script>
+  <link rel="stylesheet" href="styles.css?v=3">
+  <script src="release.js?v=2" defer></script>
   <script src="phone-demo.js" defer></script>
 </head>
 <body>
@@ -35,15 +35,15 @@
   <main id="main">
     <section class="wrap hero" aria-labelledby="hero-title">
       <div class="hero-copy">
-        <a class="release-link" id="release-link" href="https://github.com/07rjain/runlocal/releases/tag/v1.0.0-rc8">
+        <a class="release-link" id="release-link" href="https://github.com/07rjain/runlocal/releases/tag/v1.0.0-rc10">
           <span class="status-dot" aria-hidden="true"></span>
-          <span id="release-status">1.0.0-rc8 preview</span>
+          <span id="release-status">1.0.0-rc10 preview</span>
           <span class="release-chevron" aria-hidden="true">›</span>
         </a>
         <h1 id="hero-title"><span>Download a model.</span> <span>Go offline.</span></h1>
-        <p>RunLocal runs text, image, and voice models on Android. Set up a compatible model once, then use it without a connection.</p>
+        <p>Chat, generate images, speak text, transcribe audio, and read text from photos on Android. Download a compatible model to use it offline.</p>
         <div class="hero-actions">
-          <a class="button" id="apk-link" href="https://github.com/07rjain/runlocal/releases/download/v1.0.0-rc8/runlocal-1.0.0-rc8-arm64.apk">
+          <a class="button" id="apk-link" href="https://github.com/07rjain/runlocal/releases/download/v1.0.0-rc10/runlocal-1.0.0-rc10-arm64.apk">
             Download Android APK
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4"/></svg>
           </a>
@@ -65,7 +65,7 @@
             <div class="phone-header">
               <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></svg>
               <div>
-                <strong>Gemma 3 1B <span aria-hidden="true">▾</span></strong>
+                <strong>Qwen3 0.6B <span aria-hidden="true">▾</span></strong>
                 <small>Text chat · CPU only</small>
               </div>
               <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14"/></svg>
@@ -103,30 +103,45 @@
     <section class="catalog" id="models" aria-labelledby="models-title">
       <div class="wrap catalog-layout">
         <div class="catalog-intro">
-          <h2 id="models-title">Pick a model.</h2>
-          <p>Download a supported model or import compatible files you already have. Available memory and the phone’s chipset determine what will run.</p>
+          <h2 id="models-title">Models you can run</h2>
+          <p>Open <strong>Models → Add model</strong> to browse by task. Compare download sizes and memory estimates before picking a model.</p>
+          <p>Use <strong>Refresh catalog</strong> to get newly listed models supported by your build. Rc10 is a preview, and its new adapters are experimental.</p>
           <a class="text-link" href="support.html#models">Model compatibility</a>
         </div>
         <dl class="model-list">
           <div>
-            <dt>Text</dt>
+            <dt>Chat</dt>
             <dd>
-              <strong>Compatible LiteRT-LM models</strong>
-              <p>Stream chat replies from <code>.litertlm</code> models. Choose CPU or GPU per model.</p>
+              <strong>Qwen3, LFM3, and Qwen2.5 GGUF</strong>
+              <p>Stream replies with compatible LiteRT-LM models on CPU or GPU, depending on the export and phone. Run compatible single-file instruct GGUF models on CPU.</p>
             </dd>
           </div>
           <div>
-            <dt>Image</dt>
+            <dt>Images</dt>
             <dd>
-              <strong>Stable Diffusion 1.x</strong>
-              <p>Generate from a prompt or starting image on the CPU.</p>
+              <strong>Stable Diffusion 1.5 and SDXL Base</strong>
+              <p>Generate an image from a prompt or attach a starting image. Both run on CPU. SDXL Base is experimental.</p>
             </dd>
           </div>
           <div>
-            <dt>Voice</dt>
+            <dt>Text-to-speech</dt>
             <dd>
-              <strong>Android speech and Underdog Woof</strong>
-              <p>Dictate with on-device recognition or read replies with an installed offline voice. Juno and Mira are experimental. <a href="https://underdog.ai">Voice by Underdog Woof</a>.</p>
+              <strong>Woof, Kitten TTS 2 Pico, BlueV3 Noa, and Kokoro</strong>
+              <p>Speak text with a downloaded voice or read replies aloud with Android’s offline voices. <a href="https://underdog.ai">Voice by Underdog Woof</a>.</p>
+            </dd>
+          </div>
+          <div>
+            <dt>Transcription</dt>
+            <dd>
+              <strong>Whisper Tiny and Zipformer Small</strong>
+              <p>Transcribe a short mono 16-bit PCM WAV file with a downloaded English model. Use Android’s offline dictation for microphone input.</p>
+            </dd>
+          </div>
+          <div>
+            <dt>OCR</dt>
+            <dd>
+              <strong>Cactus Mirage and Tesseract</strong>
+              <p>Extract printed text from an image. Mirage reads Latin-script text. Tesseract offers English and Hindi language packs.</p>
             </dd>
           </div>
         </dl>
@@ -141,7 +156,7 @@
         </div>
         <ol>
           <li><strong>Install RunLocal.</strong><p>Open the signed APK and follow Android’s installation prompt.</p></li>
-          <li><strong>Add a model.</strong><p>In Models, tap Add model. Paste a supported public Hugging Face link or import a file.</p></li>
+          <li><strong>Add a model.</strong><p>In Models, tap Add model and pick a chat model from the catalog. Compatible file imports and Hugging Face links are under Other ways to add a model.</p></li>
           <li><strong>Choose it in Chat.</strong><p>Pick the installed model at the top of Chat and send a message.</p></li>
         </ol>
       </div>

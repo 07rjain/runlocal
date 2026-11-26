@@ -1,4 +1,4 @@
-// Keep the published rc8 links usable when JavaScript or GitHub's API is unavailable.
+// Keep the published rc10 links usable when JavaScript or GitHub's API is unavailable.
 (() => {
   const github = 'https://github.com/07rjain/runlocal';
   const status = document.getElementById('release-status');
@@ -13,7 +13,7 @@
     const version = release.tag_name.slice(1);
     const markers = [...release.body.matchAll(/<!-- runlocal-version-code: ([0-9]+) -->/g)];
     const code = markers.length === 1 ? Number(markers[0][1]) : 0;
-    if (!Number.isSafeInteger(code) || code < 14) return null;
+    if (!Number.isSafeInteger(code) || code < 16) return null;
 
     const notes = github + '/releases/tag/' + release.tag_name;
     const filename = 'runlocal-' + version + '-arm64.apk';

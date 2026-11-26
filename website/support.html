@@ -9,7 +9,7 @@
   <link rel="canonical" href="https://07rjain.github.io/runlocal/support.html">
   <link rel="alternate" type="text/plain" href="llms.txt" title="RunLocal guide for AI assistants">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=2">
+  <link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -51,14 +51,17 @@
 
         <section id="models">
           <h2>Models and memory</h2>
-          <p>Use compatible <code>.litertlm</code> text containers and complete Stable Diffusion 1.x checkpoints. Supported LoRAs require their matching base. Model weights download separately, and a compatible format can still exceed your phone’s RAM.</p>
-          <p>If a model fails to load, try a smaller build. If a text model reports a GPU error, choose CPU under <strong>Chat → ＋ → CPU / GPU processing</strong> and retry. See the <a href="https://github.com/07rjain/runlocal#model-support">compatibility guide</a> for experimental models and unsupported formats.</p>
+          <p>In rc10, open <strong>Models → Add model</strong> to browse supported downloads by task, compare file sizes, and see memory estimates. Tap <strong>Refresh catalog</strong> for new listings that work with your build.</p>
+          <p>Chat accepts compatible <code>.litertlm</code> exports and complete single-file instruct GGUF models. Image generation supports complete Stable Diffusion 1.x and experimental SDXL Base checkpoints. Supported LoRAs require their matching base.</p>
+          <p>Install Cactus Mirage or a Tesseract language pack, then use <strong>Chat → ＋ → Extract text from an image</strong> to run OCR offline.</p>
+          <p>If a model fails to load, try a smaller build. If a LiteRT-LM model reports a GPU error, choose CPU under <strong>Chat → ＋ → CPU / GPU processing</strong> and retry. Read the <a href="https://github.com/07rjain/runlocal#model-support">model compatibility guide</a> for supported inputs and limits.</p>
         </section>
 
         <section id="voice">
           <h2>Offline voice</h2>
           <p>Android dictation and read-aloud depend on the on-device recognizer and offline voice packs available on your phone. In Chat, the microphone dictates and the speaker reads a text reply aloud.</p>
-          <p>For experimental Juno and Mira voices, open <strong>Models → Add model → Supported voice models</strong>, download Woof, and choose a voice in Chat. <a href="https://underdog.ai">Voice by Underdog Woof</a>. Woof has a separate <a href="https://github.com/07rjain/runlocal/blob/main/app/src/main/python/underdog_woof/LICENSE">non-commercial license</a>.</p>
+          <p>On rc10, open <strong>Models → Add model → Speak text</strong> for Woof, Kitten TTS 2 Pico, BlueV3 Noa, or Kokoro. Download a voice model and choose it in Chat. <a href="https://underdog.ai">Voice by Underdog Woof</a>. Woof has a separate <a href="https://github.com/07rjain/runlocal/blob/main/app/src/main/python/underdog_woof/LICENSE">non-commercial license</a>.</p>
+          <p>Download Whisper Tiny or Zipformer Small for English audio files. In <strong>Chat → ＋ → Transcribe an audio file</strong>, select a mono 16-bit PCM WAV up to two minutes long.</p>
         </section>
 
         <section id="updates">
