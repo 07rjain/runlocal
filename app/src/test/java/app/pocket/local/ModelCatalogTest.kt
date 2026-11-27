@@ -27,6 +27,18 @@ class ModelCatalogTest {
     private val phone = CatalogDevice(8 * gib, 5 * gib, false, 10 * gib)
     private val chat = entries.first { it.task == ModelTask.CHAT }
 
+    @Test fun pinnedThinkingExportUsesItsOwnTextAdapterAndKeepsTheFastExport() {
+        val catalog = ModelCatalog.parse(asset.readText(), strictAdapters = true)
+        fun plan(id: String) = (catalog.single { it.id == id }.source as CatalogSource.Download).plan
+        val fast = plan("qwen3-0.6b")
+        val thinking = plan("qwen3-0.6b-thinking")
+        assertNull(fast.textAdapter)
+        assertEquals(QwenThinking.adapter, ModelSetupPlan.fromJson(thinking.toJson()).textAdapter)
+        assertNotEquals(fast.files.single().key, thinking.files.single().key)
+        assertTrue(thinking.isText)
+        assertThrows(IllegalArgumentException::class.java) { thinking.copy(textAdapter = "unknown").validate() }
+    }
+
     @Test fun bundledAdminEditsUseExistingRuntimesAndPinnedDownloads() {
         val bundled = ModelCatalog.parse(asset.readText(), strictAdapters = true)
         assertEquals(bundled.size, bundled.map { it.id }.distinct().size)

@@ -14,6 +14,20 @@
       "sha256": "2df6821ec12702dafd33915e7a1a1adc7c4b053f3672fd9555dfaf3a114c4139"
     },
     {
+      "id": "qwen3-0.6b-thinking",
+      "runtime": "builtin",
+      "adapter": "litert-qwen3-thinking-v1",
+      "title": "Qwen3 0.6B Thinking",
+      "summary": "Shows its reasoning in Chat. Best for short math and logic questions.",
+      "license": "Apache 2.0",
+      "experimental": true,
+      "repo": "litert-community/Qwen3-0.6B-int4",
+      "revision": "01d8620f3233a158edc2aa2c84f5d5e3fa0c02c0",
+      "file": "qwen3_0.6b_q4_block32_ekv1280.litertlm",
+      "bytes": 347251840,
+      "sha256": "312ce4e6bc0816edf844b9b7e66542648a89440b54822c3581e48a19e9ff5715"
+    },
+    {
       "id": "lfm3-1.7b",
       "runtime": "litert-lm",
       "title": "LFM3 1.7B",

@@ -16,6 +16,8 @@ fun explainTextFailure(error: Throwable, backend: ProcessingBackend): TextFailur
     val details = generateSequence(error) { it.cause }.take(5).mapNotNull { it.message }.distinct().joinToString("\n").ifBlank { error.javaClass.simpleName }
     val lower = details.lowercase()
     val (summary, action) = when {
+        "returned no answer text" in lower ->
+            "The model finished without a final answer." to "Try a shorter question or start a new chat."
         listOf("out of memory", "not enough memory", "bad_alloc", "cannot allocate", "allocation failed").any { it in lower } ->
             "There is not enough memory to run this model." to "Close other apps or choose a smaller model. GPU processing also uses phone memory."
         listOf("context length", "maximum number of tokens", "max_num_tokens", "context window", "kv cache is full", "input is too long").any { it in lower } ->

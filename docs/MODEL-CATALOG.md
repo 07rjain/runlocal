@@ -11,6 +11,7 @@ Edit [model-catalog.json on GitHub](https://github.com/07rjain/runlocal/blob/mai
 | Runtime or adapter ID | Supported inputs |
 | --- | --- |
 | `litert-lm` | One generic compatible `.litertlm` chat export. Enable `gpu` only when the publisher documents it for that export. |
+| `litert-qwen3-thinking-v1` | One compatible Qwen3 thinking `.litertlm` text export with a context of at least 1,280 tokens and Qwen3's ChatML and thinking delimiters. RunLocal supplies the template and routes the thought channel into Chat. |
 | `llama-gguf-v1` | One complete instruct GGUF with a chat template supported by llama.cpp. CPU. Projection files, split weights, embeddings and multimodal models require different contracts. |
 | `sd15` | One complete Stable Diffusion 1.x GGUF or Safetensors checkpoint. |
 | `sdxl-v1` | One complete SDXL Base GGUF or Safetensors checkpoint including its text encoders and VAE. CPU, experimental. |
@@ -43,3 +44,5 @@ The Piper Lessac Medium export produced intelligible English in a Linux smoke te
 5. Merge to `main`, refresh the catalog on the installed APK, download the new entry and try it offline. Devices without its adapter skip the newer listing. Keep downloaded recipes available for old chats even if a listing changes.
 
 A new execution contract needs its own versioned adapter in an APK. A compatible recipe can update over GitHub.
+
+For a Qwen3 thinking listing, generate its pinned fields as `litert-lm` in step 2, then set `"runtime": "builtin"` and `"adapter": "litert-qwen3-thinking-v1"`. Use the exact thinking export. Verify that a short prompt emits both reasoning and a final answer before publishing the listing. Older builds skip this adapter.

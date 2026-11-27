@@ -2,11 +2,11 @@
 
 A small native Android app for chatting with models on your phone. Two tabs: **Chat** and **Models**. No account, analytics, prompt uploads, or cloud inference. Internet is used for requested Hugging Face model setup, the catalog check when browsing for models, and optional daily GitHub release checks. Downloaded models run locally.
 
-**Candidate: 1.0.0-rc13** · Android 12+ · ARM64 phones. Physical-device acceptance is pending. Application code is Apache-2.0. The bundled Woof runtime has a separate non-commercial license. A stable v1 APK release has not been published.
+**Candidate: 1.0.0-rc14** · Android 12+ · ARM64 phones. Physical-device acceptance is pending. Application code is Apache-2.0. The bundled Woof runtime has a separate non-commercial license. A stable v1 APK release has not been published.
 
 ## Use it
 
-Get the initial APK from [GitHub Releases](https://github.com/07rjain/runlocal/releases). Install rc13 once over an existing official build to enable in-app downloads for subsequent updates. For a local development build, install `dist/runlocal-1.0.0-rc13-arm64.apk` after running the build and packaging steps below. Model weights are downloaded separately.
+Get the initial APK from [GitHub Releases](https://github.com/07rjain/runlocal/releases). From rc13 or later, use **Chat → ☰ → App updates** to download a newer build. For a local development build, install `dist/runlocal-1.0.0-rc14-arm64.apk` after running the build and packaging steps below. Model weights are downloaded separately.
 
 1. **Models** is a single installed-model library with All, Text, Voice, Image, OCR and Transcription filters. **Add model** opens the catalog. Pick a task to see available models, storage and RAM fit estimates, and a download action. The catalog installs verified files directly from Hugging Face. Pasting a model link, importing files and connecting folders are available under **Other ways to add a model**. Downloads can use mobile data and support pause and resume.
 2. Tap the model name at the top of **Chat** to select an installed text, voice, image, OCR, or transcription model. The composer adapts to the selected model. Voice replies can be replayed and generated images can be saved. Each image prompt generates a separate image.
@@ -17,7 +17,9 @@ Get the initial APK from [GitHub Releases](https://github.com/07rjain/runlocal/r
 7. With a supported SD 1.x or SDXL Base image model selected, **＋ → Attach starting image** attaches a starting image for image-to-image generation. **＋ → Image options** opens optional image settings.
 8. With an **OCR** model selected, use **Add an image** or **Take a photo**. With a **Transcription** model selected, use **Add an audio file** or **Record audio**. Choose a mono 16-bit PCM WAV or record up to two minutes. Results appear in the conversation and can be copied. The picker links to the matching catalog when you need to install a model. Use the **＋** tools in a text conversation to extract text into its draft.
 
-History, drafts, generated images, and model assignments are stored privately on the device. Replies remain attached to the conversation that started them when you switch chats during generation. Image chats retain their component/LoRA selection; removing a required file produces an error instead of silently substituting another model. Text inference uses the model’s chat template with proper user/assistant roles. A native engine/conversation is reused only for its owning chat and processor; switching chats/processors, a failed decode, or rolling the context window recreates it. Replay includes up to six earlier valid entries and the new message. Context is capped at 2,048 tokens; output is capped at 512 tokens, with thinking disabled. Long prompts/replies can still exceed a model’s context limit.
+History, drafts, generated images, and model assignments are stored privately on the device. Replies remain attached to the conversation that started them when you switch chats during generation. Image chats retain their component/LoRA selection; removing a required file produces an error instead of silently substituting another model. A native engine/conversation is reused only for its owning chat and processor; switching chats/processors, a failed decode, or rolling the context window recreates it. Replay includes up to six earlier valid entries and the new message. Long prompts and replies can exceed the model’s context limit.
+
+For reasoning, install **Qwen3 0.6B Thinking** from **Models → Add model → Chat** and select it in Chat. Tap **Show reasoning** on the assistant bubble during or after a reply. The model's reasoning is stored locally with the reply. Future turns use the final answers. This export has a 1,280-token context and is best for short questions.
 
 ## Loading and generation performance
 

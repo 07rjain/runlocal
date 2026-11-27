@@ -88,7 +88,7 @@ internal object ModelCatalog {
                 CatalogModel(id, recipe.task, title, entry.string("summary", 240), "CPU", spec.licenseSummary,
                     spec.modelUrl, spec.downloadBytes, spec.memoryBytes, SPEECH_STORAGE_RESERVE,
                     entry.flag("experimental"), CatalogSource.Speech(spec))
-            } else if (runtime == "builtin" && adapter !in listOf("llama-gguf-v1", "sdxl-v1")) {
+            } else if (runtime == "builtin" && adapter !in listOf("llama-gguf-v1", "sdxl-v1", QwenThinking.adapter)) {
                 // A newer app can add a built-in adapter without taking old clients' catalog offline.
                 val model = builtins[id]?.takeIf { adapter == null }
                 if (model == null) {
@@ -100,6 +100,7 @@ internal object ModelCatalog {
             } else {
                 require(id !in builtins) { "The catalog ID $id belongs to a built-in model." }
                 require(adapter == null || runtime == "builtin")
+                require(runtime != QwenThinking.adapter) { "Use the built-in Qwen thinking adapter." }
                 val plan = downloadPlan(entry, adapter ?: runtime)
                 val file = plan.files.single()
                 require(files.add(file.key)) { "The catalog already lists the file for $id." }
@@ -118,7 +119,7 @@ internal object ModelCatalog {
 
     private fun downloadPlan(entry: JsonObject, runtime: String): ModelSetupPlan {
         val family = when (runtime) {
-            "litert-lm" -> "text"
+            "litert-lm", QwenThinking.adapter -> "text"
             "sd15" -> "sd15"
             "llama-gguf-v1" -> "gguf"
             "sdxl-v1" -> "sdxl"
@@ -129,7 +130,8 @@ internal object ModelCatalog {
         val file = RemoteModelFile(repo, entry.string("revision", 40), entry.string("file", 512),
             entry.integer("bytes"), entry.string("sha256", 64), "sha256",
             if (family in listOf("text", "gguf")) ModelRole.TEXT else ModelRole.CHECKPOINT)
-        return ModelSetupPlan(repo, entry.string("title", 80), family, "", listOf(file)).also { validatePlan(it) }
+        return ModelSetupPlan(repo, entry.string("title", 80), family, "", listOf(file),
+            textAdapter = runtime.takeIf { it == QwenThinking.adapter }).also { validatePlan(it) }
     }
 
     /** Validate the exact plan selected in Models again inside the download process. */

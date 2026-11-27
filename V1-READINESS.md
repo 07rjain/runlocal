@@ -1,6 +1,6 @@
 # Version 1 readiness
 
-The current deliverable is **1.0.0-rc13**, a development candidate with in-app downloads for signed updates. Physical-device acceptance remains pending.
+The current deliverable is **1.0.0-rc14**, a development candidate with reasoning and final-answer streaming for the pinned Qwen3 thinking export. Physical-device acceptance remains pending.
 
 ## Implemented for this candidate
 
@@ -34,6 +34,7 @@ The current deliverable is **1.0.0-rc13**, a development candidate with in-app d
 - [ ] Test offline microphone/read-aloud, denied permissions, keyboard/rotation, long chats, and accessibility on the phone.
 - [ ] Select an OCR model and a transcription model from Chat on an ARM64 phone. Check each composer action, missing-model setup, camera and microphone cancellation, offline recognition, and copyable results in the originating conversation. Also verify the text composer’s media tools still insert into the draft.
 - [ ] Verify live streaming, loading states, measured TTFT/token rates, saved metrics and chat switching during generation on CPU/GPU.
+- [ ] Download Qwen3 0.6B Thinking, ask short questions offline, expand and collapse **Show reasoning** during streaming, and reopen the chat to verify the reasoning and final answer are preserved separately.
 - [ ] Verify the single composer on a phone, notification permission/disable behavior, stable-only and opt-in candidate release detection, and channel changes.
 - [ ] From rc13 or later, download a newer signed APK inside RunLocal on an ARM64 phone. Exercise denied source permission, cancellation, the Android confirmation when required, and successful replacement with chats and models intact.
 - [ ] Measure memory, speed, thermal behavior, and battery use. Keep MOSS experimental until full matching base+adapter generation succeeds on target hardware.

@@ -66,6 +66,20 @@ class ChatRepositoryTest {
         assertTrue(repo.addRecognitionResult(speech.id, speech.model, "capture-2", RecognitionInput.RECORDING, "Hello"))
         assertEquals(listOf("Recording", "Hello"), requireNotNull(repo.get(speech.id)).messages.map { it.text })
     }
+    @Test fun savedReasoningReopensWithTheReplyAndIsExcludedFromModelHistory() {
+        val repo = repository()
+        val chat = repo.create()
+        val reply = ChatLine("assistant", "", state = "pending", turn = "one")
+        chat.messages.add(ChatLine("user", "3 + 4?", turn = "one"))
+        chat.messages.add(reply)
+        repo.save(chat)
+        assertTrue(repo.finish(chat.id, reply.id, "7", reasoning = "Add 3 and 4."))
+        val saved = requireNotNull(repo.get(chat.id)).messages
+        assertEquals("Add 3 and 4.", saved.last().reasoning)
+        assertEquals("7", textConversationContext(saved).last().text)
+        assertNull(textConversationContext(saved).last().reasoning)
+    }
+
     @Test fun failedReplyIsSavedWithoutDeletingOtherTurns() {
         val repo = repository(); val chat = repo.create()
         val reply = ChatLine("assistant", "Working", state = "pending", turn = "one")

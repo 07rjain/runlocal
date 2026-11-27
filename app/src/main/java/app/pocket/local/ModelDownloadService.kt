@@ -93,7 +93,7 @@ class ModelDownloadService : Service() {
                                     }
                                 }
                             })
-                        store.installRemote(downloaded, file)
+                        store.installRemote(downloaded, file, plan)
                         completed += file.size
                     }
                     state.put("state", "ready").put("message", "Your model is added. Select it in Chat.").put("bytes", plan.totalBytes).put("total", plan.totalBytes)

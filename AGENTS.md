@@ -28,6 +28,8 @@ Read README.md, CHANGELOG.md and V1-READINESS.md before changing release behavio
 - Add an adapter ID for a new inference contract. Include a pinned reference model, runtime and ABI limits, validation tests and offline inference checks. Use existing Chat and Models entry points, serial inference ownership, and the app's privacy guarantees. Preserve existing installed model identities and history.
 - Run catalog validation before editing GitHub `main`. An Android compile or host inference pass supports an experimental listing. Record successful runs on the target phone before claiming phone acceptance.
 
+The rc14 `litert-qwen3-thinking-v1` adapter uses LiteRT-LM with a Qwen3 ChatML template and the runtime's thought channel. Persist the installed adapter with its model. Store reasoning separately from answer text and replay only the answers. Keep the thinking export experimental until device acceptance.
+
 ## Validation and releases
 
 `website/` is the static GitHub Pages landing page: plain HTML/CSS/JS, no build step, no analytics, no external scripts; keep its claims consistent with README.md and the current candidate status. `scripts/check_website.py` validates it.

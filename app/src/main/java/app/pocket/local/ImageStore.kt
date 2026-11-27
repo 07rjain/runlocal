@@ -110,9 +110,9 @@ class ImageStore(private val context: Context) {
     fun remainingDownloadBytes(plan: ModelSetupPlan): Long = plan.files.filter { cached(it) == null }.sumOf { file ->
         (file.size - File(context.filesDir, "model-downloads/${file.key}.part").length().coerceAtMost(file.size)).coerceAtLeast(0)
     }
-    fun installRemote(source: File, file: RemoteModelFile): ImageAsset {
+    fun installRemote(source: File, file: RemoteModelFile, plan: ModelSetupPlan): ImageAsset {
         file.validate()
-        if (file.role == ModelRole.TEXT) return ModelStore(context).installRemote(source, file).let { ImageAsset(it.id, it.name, ModelRole.TEXT, it.file, file.key) }
+        if (file.role == ModelRole.TEXT) return ModelStore(context).installRemote(source, file, plan).let { ImageAsset(it.id, it.name, ModelRole.TEXT, it.file, file.key) }
         cached(file)?.let { return it }
         ModelInspector.validate(source, file.name, file.role)
         val id = file.key
@@ -150,7 +150,8 @@ class ImageStore(private val context: Context) {
         val plan = ModelSetupPlan.fromJson(state.getString("plan"))
         if (plan.isText) {
             val texts = ModelStore(context)
-            val model = texts.cached(plan.files.single()) ?: error("The downloaded text model was removed. Add it again.")
+            val installed = texts.cached(plan.files.single()) ?: error("The downloaded text model was removed. Add it again.")
+            val model = texts.configureForPlan(installed, plan)
             texts.selectedId = model.id
             check(prefs.edit().putString("appliedSetup", id).commit())
             return true

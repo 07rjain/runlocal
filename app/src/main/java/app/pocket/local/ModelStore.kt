@@ -10,7 +10,7 @@ import org.json.JSONObject
 import java.io.File
 import java.util.UUID
 
-data class LocalModel(val id: String, val name: String, val file: File) {
+data class LocalModel(val id: String, val name: String, val file: File, val textAdapter: String? = null) {
     val size: Long get() = file.length()
 }
 
@@ -24,23 +24,48 @@ class ModelStore(private val context: Context) {
 
     fun models(): List<LocalModel> = directory.listFiles().orEmpty()
         .filter { it.extension in listOf("litertlm", "gguf") }
-        .map { file -> LocalModel(file.nameWithoutExtension,
-            runCatching { JSONObject(File(directory, "${file.nameWithoutExtension}.meta").readText()).getString("name") }.getOrNull() ?: prefs.getString("name_${file.nameWithoutExtension}", file.name) ?: file.name, file) }
+        .map { file ->
+            val id = file.nameWithoutExtension
+            val meta = runCatching { JSONObject(File(directory, "$id.meta").readText()) }.getOrNull()
+            val name = meta?.optString("name")?.takeIf { it.isNotBlank() } ?: prefs.getString("name_$id", file.name) ?: file.name
+            val adapter = meta?.optString("textAdapter")?.takeIf { it == QwenThinking.adapter && file.extension == "litertlm" }
+            LocalModel(id, name, file, adapter)
+        }
         .sortedBy { it.name.lowercase() }
 
     fun cached(remote: RemoteModelFile): LocalModel? = models().find { it.id == remote.key && it.size == remote.size }
-    fun installRemote(source: File, remote: RemoteModelFile): LocalModel {
+    fun installRemote(source: File, remote: RemoteModelFile, plan: ModelSetupPlan? = null): LocalModel {
         require(remote.role == ModelRole.TEXT)
         remote.validate()
-        cached(remote)?.let { return it }
+        cached(remote)?.let { return configureForPlan(it, plan) }
         ModelInspector.validate(source, remote.name, ModelRole.TEXT)
         val destination = File(directory, "${remote.key}.${remote.name.substringAfterLast('.')}")
+        val model = saveMetadata(configuredModel(LocalModel(remote.key, remote.name, destination), plan))
         check(source.renameTo(destination)) { "Could not save the text model." }
-        val metadata = AtomicFile(File(directory, "${remote.key}.meta"))
+        return model
+    }
+
+    internal fun configureForPlan(model: LocalModel, plan: ModelSetupPlan?): LocalModel {
+        val configured = configuredModel(model, plan)
+        return if (configured != model) saveMetadata(configured) else model
+    }
+
+    private fun configuredModel(model: LocalModel, plan: ModelSetupPlan?): LocalModel {
+        val adapter = plan?.textAdapter ?: return model
+        require(adapter == QwenThinking.adapter && plan.files.single().key == model.id && model.file.extension == "litertlm")
+        return model.copy(name = plan.title, textAdapter = adapter)
+    }
+
+    private fun saveMetadata(model: LocalModel): LocalModel {
+        val metadata = AtomicFile(File(directory, "${model.id}.meta"))
         val output = metadata.startWrite()
-        try { output.write(JSONObject().put("name", remote.name).toString().toByteArray()); metadata.finishWrite(output) }
+        try {
+            val json = JSONObject().put("name", model.name).put("textAdapter", model.textAdapter)
+            output.write(json.toString().toByteArray())
+            metadata.finishWrite(output)
+        }
         catch (e: Exception) { metadata.failWrite(output); throw e }
-        return LocalModel(remote.key, remote.name, destination)
+        return model
     }
 
     fun selected(): LocalModel? = models().find { it.id == selectedId }
@@ -123,5 +148,6 @@ data class ChatLine(
     val id: String = UUID.randomUUID().toString(),
     val image: String = "", val state: String = "complete",
     val turn: String = "",
-    val metrics: GenerationMetrics? = null
+    val metrics: GenerationMetrics? = null,
+    val reasoning: String? = null
 )

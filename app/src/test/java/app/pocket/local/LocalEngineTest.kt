@@ -98,6 +98,29 @@ class LocalEngineTest {
         assertTrue(explainTextFailure(IllegalStateException("out of memory"), ProcessingBackend.GPU).summary.contains("memory"))
         assertTrue(explainTextFailure(IllegalStateException("context length exceeded"), ProcessingBackend.CPU).action.contains("new chat"))
     }
+
+    @Test fun reasoningAndFinalAnswerStreamSeparately() {
+        val runtime = LocalEngine("unused", TextSessionFactory { _, _, _ ->
+            object : TextSession {
+                override fun send(prompt: String): String = error("Use the structured stream")
+                override fun streamReply(prompt: String, onReply: (TextReply) -> Unit): TextReply {
+                    onReply(TextReply("", "Add the two values."))
+                    return TextReply("7", "Add the two values.").also(onReply)
+                }
+                override fun close() {}
+            }
+        })
+        val states = mutableListOf<GenerationProgress>()
+        val answer = runtime.generate(model, listOf(ChatLine("user", "3 + 4?")), onProgress = states::add)
+        assertEquals("7", answer)
+        val thought = states.single { it.stage == "Thinking…" }
+        assertEquals("", thought.text)
+        assertEquals("Add the two values.", thought.reasoning)
+        assertEquals(thought.reasoning, states.last().reasoning)
+        assertEquals("7", states.last().text)
+        assertEquals(1280, textEngineConfig(model.copy(textAdapter = QwenThinking.adapter), ProcessingBackend.CPU,
+            temporary.newFolder().path).maxNumTokens)
+    }
     @Test fun longChatRebuildsBoundedContextInsteadOfGrowingNativeStateForever() {
         val factory = Factory(); val runtime = LocalEngine("unused", factory)
         val history = mutableListOf<ChatLine>()

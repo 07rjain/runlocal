@@ -58,11 +58,13 @@ class ChatRepository(private val directory: File) {
         return true
     }
 
-    fun finish(chatId: String, replyId: String, text: String, image: String = "", failed: Boolean = false, metrics: GenerationMetrics? = null): Boolean {
+    fun finish(chatId: String, replyId: String, text: String, image: String = "", failed: Boolean = false,
+               metrics: GenerationMetrics? = null, reasoning: String? = null): Boolean {
         val chat = get(chatId) ?: return false
         val index = chat.messages.indexOfFirst { it.id == replyId && it.state == "pending" }
         if (index < 0) return false
-        chat.messages[index] = chat.messages[index].copy(text = text, image = image, state = if (failed) "error" else "complete", metrics = if (failed) null else metrics)
+        chat.messages[index] = chat.messages[index].copy(text = text, image = image, state = if (failed) "error" else "complete",
+            metrics = if (failed) null else metrics, reasoning = reasoning?.trim()?.takeIf { it.isNotEmpty() })
         chat.updatedAt = System.currentTimeMillis(); save(chat)
         return true
     }
@@ -72,4 +74,5 @@ class ChatRepository(private val directory: File) {
 fun textConversationContext(messages: List<ChatLine>): List<ChatLine> {
     val failedTurns = messages.filter { it.state == "error" }.map { it.turn }.toSet()
     return messages.filter { it.image.isEmpty() && it.state == "complete" && it.turn !in failedTurns }
+        .map { if (it.reasoning == null) it else it.copy(reasoning = null) }
 }

@@ -4,6 +4,16 @@ Versions are ordered newest first. Earlier entries reconstruct the local develop
 
 ## [Unreleased]
 
+## [1.0.0-rc14] - 2026-11-27
+
+### Added
+
+- Download **Qwen3 0.6B Thinking** from the Chat catalog. Open **Show reasoning** on a reply to read the model's thinking as it streams or after the reply is saved.
+
+### Known limits
+
+- The experimental 347 MB Qwen3 thinking export is best for short questions. Its reasoning and answers can be wrong. On-device acceptance is pending.
+
 ## [1.0.0-rc13] - 2026-11-27
 
 ### Added

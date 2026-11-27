@@ -7,15 +7,20 @@ interface TextRuntime : AutoCloseable {
 interface TextSession : AutoCloseable {
     fun send(prompt: String): String
     fun stream(prompt: String, onText: (String) -> Unit): String = send(prompt).also(onText)
+    fun streamReply(prompt: String, onReply: (TextReply) -> Unit): TextReply =
+        TextReply(stream(prompt) { onReply(TextReply(it)) })
     fun metrics(): DecodeMetrics? = null
 }
+data class TextReply(val text: String, val reasoning: String = "")
+
 fun interface TextSessionFactory {
     fun open(model: LocalModel, backend: ProcessingBackend, history: List<ChatLine>): TextSession
 }
 
 /** Called only on the serial inference worker. A native engine never serves two chats. */
 class LocalEngine(cachePath: String, private val sessions: TextSessionFactory = LiteRtTextSessionFactory(cachePath)) : TextRuntime {
-    private data class SessionKey(val modelId: String, val path: String, val backend: ProcessingBackend, val conversationId: String)
+    private data class SessionKey(val modelId: String, val path: String, val textAdapter: String?,
+                                  val backend: ProcessingBackend, val conversationId: String)
     private var session: TextSession? = null
     private var key: SessionKey? = null
     private var completedHistory: List<Pair<String, String>> = emptyList()
@@ -23,7 +28,7 @@ class LocalEngine(cachePath: String, private val sessions: TextSessionFactory = 
     override fun generate(model: LocalModel, history: List<ChatLine>, backend: ProcessingBackend, conversationId: String, onProgress: (GenerationProgress) -> Unit): String {
         val timer = GenerationTimer(backend.title)
         require(history.isNotEmpty() && history.last().role == "user") { "A conversation must end with your message." }
-        val requested = SessionKey(model.id, model.file.absolutePath, backend, conversationId)
+        val requested = SessionKey(model.id, model.file.absolutePath, model.textAdapter, backend, conversationId)
         val prior = history.dropLast(1)
         val replay = recentTextHistory(prior)
         val signature = replay.map { it.role to it.text }
@@ -40,12 +45,15 @@ class LocalEngine(cachePath: String, private val sessions: TextSessionFactory = 
             }
             onProgress(timer.progress("Preparing prompt…"))
             val current = checkNotNull(session) { "Text session did not initialize." }
-            val response = current.stream(history.last().text) { text -> onProgress(timer.progress("Generating…", text)) }
-            check(response.isNotBlank()) { "The model returned no answer text. Try a shorter prompt or another compatible model." }
+            val reply = current.streamReply(history.last().text) { part ->
+                val stage = if (part.text.isBlank() && part.reasoning.isNotBlank()) "Thinking…" else "Generating…"
+                onProgress(timer.progress(stage, part.text, part.reasoning))
+            }
+            check(reply.text.isNotBlank()) { "The model returned no answer text. Try a shorter prompt or another compatible model." }
             val metrics = timer.finish(current.metrics())
-            onProgress(timer.progress("Complete", response).copy(metrics = metrics))
-            completedHistory = signature + ("user" to history.last().text) + ("assistant" to response)
-            return response
+            onProgress(timer.progress("Complete", reply.text, reply.reasoning).copy(metrics = metrics))
+            completedHistory = signature + ("user" to history.last().text) + ("assistant" to reply.text)
+            return reply.text
         } catch (error: Throwable) {
             // A failed decode can leave native state partially advanced. Never reuse it.
             runCatching { close() }.onFailure { error.addSuppressed(it) }

@@ -57,7 +57,7 @@ data class RemoteModelFile(val repo: String, val revision: String, val path: Str
 }
 
 data class ModelSetupPlan(val repo: String, val title: String, val family: String, val trigger: String,
-                          val files: List<RemoteModelFile>) {
+                          val files: List<RemoteModelFile>, val textAdapter: String? = null) {
     val totalBytes: Long get() = files.sumOf { it.size }
     val estimatedRam: Long get() = (totalBytes * 1.25).toLong() + 512L * 1024 * 1024
     val isText get() = family == "text" || family == "gguf"
@@ -70,6 +70,8 @@ data class ModelSetupPlan(val repo: String, val title: String, val family: Strin
         require(files.map { it.role }.toSet().containsAll(required) && files.map { it.role }.distinct().size == files.size) { "The automatic setup is incomplete." }
         require(files.all { it.role in required || (!isText && it.role == ModelRole.LORA) })
         if (isText) require(files.single().name.endsWith(if (family == "gguf") ".gguf" else ".litertlm"))
+        require(textAdapter == null || (textAdapter == QwenThinking.adapter && family == "text" &&
+            files.single().hashType == "sha256" && isGenericTextModel(files.single().path))) { "Unsupported text model adapter." }
         require(trigger.length <= 128 && trigger.none { it.code < 32 })
     }
     fun toJson(): String = Gson().toJson(this)

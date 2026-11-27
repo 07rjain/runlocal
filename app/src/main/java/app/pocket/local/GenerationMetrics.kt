@@ -26,7 +26,9 @@ data class GenerationMetrics(
         "Speed and token counts come from LiteRT-LM’s last decode, not word or character estimates. Runtime TTFT and decode speed exclude app-side model loading. First text received includes loading and prompt preparation. A reused session has no model load."
 }
 
-data class GenerationProgress(val stage: String, val text: String = "", val elapsedMs: Double = 0.0, val firstTextMs: Double? = null, val metrics: GenerationMetrics? = null)
+data class GenerationProgress(val stage: String, val text: String = "", val elapsedMs: Double = 0.0,
+                              val firstTextMs: Double? = null, val metrics: GenerationMetrics? = null,
+                              val reasoning: String = "")
 
 internal fun nativeDecodeMetrics(tokens: Int, speed: Double, firstTokenSeconds: Double): DecodeMetrics = DecodeMetrics(
     tokens.coerceAtLeast(0), speed.takeIf { tokens > 0 && it.isFinite() && it > 0 },
@@ -40,10 +42,10 @@ internal class GenerationTimer(private val backend: String, private val now: () 
     private var firstText: Double? = null
     var loadMs = 0.0
     fun elapsed() = ((now() - start) / 1_000_000.0).coerceAtLeast(0.0)
-    fun progress(stage: String, text: String = ""): GenerationProgress {
+    fun progress(stage: String, text: String = "", reasoning: String = ""): GenerationProgress {
         val elapsed = elapsed()
-        if (text.isNotEmpty() && firstText == null) firstText = elapsed
-        return GenerationProgress(stage, text, elapsed, firstText)
+        if ((text.isNotBlank() || reasoning.isNotBlank()) && firstText == null) firstText = elapsed
+        return GenerationProgress(stage, text, elapsed, firstText, reasoning = reasoning)
     }
     fun finish(native: DecodeMetrics?) = GenerationMetrics(backend, loadMs, firstText, elapsed(),
         native?.tokens?.takeIf { it > 0 }, native?.tokensPerSecond, native?.firstTokenMs)

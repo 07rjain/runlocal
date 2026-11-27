@@ -91,6 +91,8 @@ class MainActivity : Activity() {
     private var pendingGeneration: PendingGeneration? = null
     private var streamingTextView: TextView? = null
     private var streamingTimingView: TextView? = null
+    private var updateStreamingReasoning: ((String) -> Unit)? = null
+    private val expandedReasoning = mutableSetOf<String>()
     private val generationHeartbeat = object : Runnable {
         override fun run() {
             refreshGenerationViews()
@@ -299,6 +301,7 @@ class MainActivity : Activity() {
         root.removeAllViews(); editor = null; statusView = null; listenAction = null
         speechStatusView = null; sendControl = null; libraryStatus = null
         streamingTextView = null; streamingTimingView = null
+        updateStreamingReasoning = null
         val scroll = ScrollView(this).apply { isFillViewport = true; clipToPadding = false }
         body = column().apply { setPadding(dp(20), dp(16), dp(20), dp(24)) }
         scroll.addView(body)
@@ -395,7 +398,8 @@ class MainActivity : Activity() {
     private fun libraryEntries(): List<LibraryEntry> = buildList {
         store.models().forEach { model ->
             val runtime = if (model.file.extension == "gguf") "llama.cpp" else "LiteRT-LM"
-            add(LibraryEntry("text:${model.id}", model.name, LibraryKind.TEXT, "${size(model.size)} · $runtime", model.size))
+            val capability = if (model.textAdapter == QwenThinking.adapter) " · Reasoning" else ""
+            add(LibraryEntry("text:${model.id}", model.name, LibraryKind.TEXT, "${size(model.size)} · $runtime$capability", model.size))
         }
         speechModels.recipes().filter { it.voices.isNotEmpty() && speechModels.installed(it) }.forEach { spec ->
             add(LibraryEntry("speech:${spec.id}", spec.title, LibraryKind.VOICE,
@@ -673,6 +677,11 @@ class MainActivity : Activity() {
                 else -> "RunLocal"
             }))
             val running = pendingGeneration?.takeIf { it.chatId == chat.id && it.replyId == message.id }
+            if (running != null || !message.reasoning.isNullOrBlank()) {
+                val updateReasoning = addReasoning(box, message.id)
+                updateReasoning(running?.progress?.reasoning ?: message.reasoning.orEmpty())
+                if (running != null) updateStreamingReasoning = updateReasoning
+            }
             if (isSpeech && !user && message.state == "complete") {
                 val play = row()
                 play.addView(Symbol("play", green), LinearLayout.LayoutParams(dp(24), dp(24)))
@@ -688,7 +697,7 @@ class MainActivity : Activity() {
                 add(box, play, top = 8)
             } else {
                 val content = if (isSpeech && !user && message.state == "pending") "Preparing speech…"
-                    else if (running != null) running.progress.text.ifEmpty { running.progress.stage } else message.text
+                    else if (running != null) running.progress.text.ifBlank { running.progress.stage } else message.text
                 val messageText = text(content, 15f, if (message.state == "error") 0xff8c4a28.toInt() else ink).apply { setTextIsSelectable(true) }
                 add(box, messageText, top = if (user) 0 else 8)
                 if (message.state == "pending") {
@@ -1236,12 +1245,37 @@ class MainActivity : Activity() {
         if (screen == "Chat" && chat.id == pending.chatId) {
             val scroll = body.parent as? ScrollView
             val wasAtBottom = scroll != null && body.height - (scroll.scrollY + scroll.height) < dp(48)
-            val content = pending.progress.text.ifEmpty { pending.progress.stage }
+            val content = pending.progress.text.ifBlank { pending.progress.stage }
+            updateStreamingReasoning?.invoke(pending.progress.reasoning)
             streamingTextView?.let { if (it.text.toString() != content) it.text = content }
             streamingTimingView?.text = status
             if (wasAtBottom) scroll.post {
                 if (screen == "Chat" && chat.id == pending.chatId && body.parent === scroll) scroll.smoothScrollTo(0, body.height)
             }
+        }
+    }
+
+    private fun addReasoning(parent: LinearLayout, replyId: String): (String) -> Unit {
+        val section = column()
+        val content = text("", 14f, muted).apply { setTextIsSelectable(true) }
+        val toggle = button("Show reasoning", false) {}
+        fun refresh() {
+            val expanded = replyId in expandedReasoning
+            toggle.text = if (expanded) "Hide reasoning" else "Show reasoning"
+            content.visibility = if (expanded) View.VISIBLE else View.GONE
+        }
+        toggle.setOnClickListener {
+            if (!expandedReasoning.add(replyId)) expandedReasoning.remove(replyId)
+            refresh()
+        }
+        add(section, toggle)
+        add(section, content, top = 8)
+        add(parent, section, top = 8)
+        refresh()
+        return { reasoning ->
+            val visible = reasoning.isNotBlank()
+            section.visibility = if (visible) View.VISIBLE else View.GONE
+            if (visible && content.text.toString() != reasoning) content.text = reasoning
         }
     }
 
@@ -1264,10 +1298,12 @@ class MainActivity : Activity() {
         uiHandler.removeCallbacks(generationHeartbeat); uiHandler.post(generationHeartbeat)
         worker.execute {
             var metrics: GenerationMetrics? = null
+            var reasoning = ""
             var lastUiUpdate = 0L
             var lastStage = ""
             val result = runCatching { engine.generate(model, context, processor, chatId) { progress ->
                 progress.metrics?.let { metrics = it }
+                reasoning = progress.reasoning
                 val now = SystemClock.elapsedRealtime()
                 if (progress.stage != lastStage || now - lastUiUpdate >= 80 || progress.metrics != null) {
                     lastUiUpdate = now; lastStage = progress.stage
@@ -1285,7 +1321,7 @@ class MainActivity : Activity() {
                 uiHandler.removeCallbacks(generationHeartbeat); pendingGeneration = null
                 saveDraft()
                 result.onSuccess { response ->
-                    chats.finish(chatId, replyId, response, metrics = metrics)
+                    chats.finish(chatId, replyId, response, metrics = metrics, reasoning = reasoning)
                     if (ModelTimings.isCatalogFile(ModelRole.TEXT, model.id)) metrics?.firstTextMs?.let {
                         modelTimings.record("${model.id}-${processor.name}", it.toLong())
                     }
@@ -1293,7 +1329,7 @@ class MainActivity : Activity() {
                     toast("Generated locally. Tap the reply’s timing for performance details.")
                 }.onFailure { error ->
                     val failure = explainTextFailure(error, processor)
-                    chats.finish(chatId, replyId, failure.message, failed = true)
+                    chats.finish(chatId, replyId, failure.message, failed = true, reasoning = reasoning)
                     reloadChat()
                     notice("Model could not run", "${failure.message}\n\nTechnical details:\n${failure.details}")
                 }
@@ -1643,6 +1679,15 @@ class MainActivity : Activity() {
         when (val source = model.source) {
             is CatalogSource.Download -> {
                 val key = if (model.task == ModelTask.CHAT) "text:${source.plan.files.single().key}" else "image:${source.plan.family}"
+                if (source.plan.textAdapter != null) {
+                    val installed = store.cached(source.plan.files.single())
+                    if (installed != null) {
+                        runCatching { store.configureForPlan(installed, source.plan) }.onFailure {
+                            notice("Could not select model", it.message.orEmpty())
+                            return
+                        }
+                    }
+                }
                 libraryEntries().find { it.key == key }?.let(::useLibraryEntry)
                     ?: toast("This model is no longer installed.")
             }
