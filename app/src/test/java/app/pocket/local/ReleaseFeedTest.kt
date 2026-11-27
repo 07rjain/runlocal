@@ -44,6 +44,21 @@ class ReleaseFeedTest {
         assertNull(ReleaseFeed.parse(json.toString(), repository, 9))
     }
 
+    @Test fun exposesOnlyTheVerifiedApkFromTheRelease() {
+        val json = release()
+        val digest = "a".repeat(64)
+        val apk = json.getAsJsonArray("assets")[0].asJsonObject
+        apk.addProperty("digest", "sha256:$digest")
+        assertEquals(UpdateApk(apk.get("browser_download_url").asString, 123, digest),
+            ReleaseFeed.parse(json.toString(), repository, 9)?.apk)
+        json.addProperty("body", json.get("body").asString + "\nAPK SHA-256: `${"b".repeat(64)}`")
+        assertNull(ReleaseFeed.parse(json.toString(), repository, 9))
+        apk.remove("digest")
+        assertEquals("b".repeat(64), ReleaseFeed.parse(json.toString(), repository, 9)?.apk?.sha256)
+        apk.addProperty("size", ReleaseFeed.MAX_APK_BYTES + 1)
+        assertNull(ReleaseFeed.parse(json.toString(), repository, 9))
+    }
+
     private fun candidate(code: Int = 22, tag: String = "v1.0.0-rc8") = release().apply {
         addProperty("prerelease", true); addProperty("tag_name", tag)
         addProperty("body", "Candidate\n<!-- runlocal-version-code: $code -->")

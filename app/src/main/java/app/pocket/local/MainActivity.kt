@@ -100,6 +100,7 @@ class MainActivity : Activity() {
     private var destroyed = false
     private val updateWorker = Executors.newSingleThreadExecutor()
     private var checkingUpdates = false
+    private val appUpdater by lazy { AppUpdateDialog(this, ::saveDraft) }
     private lateinit var speechModels: SpeechModelStore
     private lateinit var speechClient: SpeechClient
     private var speechStatusView: TextView? = null
@@ -1084,10 +1085,11 @@ class MainActivity : Activity() {
     }
 
     private fun showUpdateSettings() {
+        if (appUpdater.showProgress()) return
         val updates = UpdateNotifications(this)
         if (!updates.configured) { notice("App updates", "Automatic updates will be available when the official GitHub release repository is configured. This build has no release server configured."); return }
         val panel = column().apply { setPadding(dp(20), dp(8), dp(20), dp(8)) }
-        add(panel, text("Check public GitHub releases about once a day. No chats or models are sent. Android may delay background checks. You approve APK installation.", 14f))
+        add(panel, text("Check for new versions about once a day. Updates download in RunLocal. Android may ask you to allow or confirm installation.", 14f))
         add(panel, CheckBox(this).apply {
             text = "Include release candidates (experimental)"; setTextColor(ink); minHeight = dp(48)
             isChecked = updates.includePrereleases
@@ -1110,7 +1112,7 @@ class MainActivity : Activity() {
 
     private fun checkAppUpdates(manual: Boolean = false) {
         val updates = UpdateNotifications(this)
-        if (checkingUpdates || !updates.configured) return
+        if (checkingUpdates || appUpdater.active || !updates.configured) return
         updates.schedule()
         if (!manual && !updates.enabled) return
         checkingUpdates = true
@@ -1125,11 +1127,8 @@ class MainActivity : Activity() {
                     else {
                         val prefs = getSharedPreferences("app-updates", MODE_PRIVATE)
                         if (!manual && prefs.getInt("shownVersion", 0) >= update.versionCode) return@onSuccess
-                        prefs.edit().putInt("shownVersion", update.versionCode).apply()
                         runCatching { updates.notify(update) }
-                        AlertDialog.Builder(this).setTitle("RunLocal ${update.versionName} is available")
-                            .setMessage((if (update.prerelease) "This is an experimental release candidate.\n\n" else "") + "Open the GitHub release to download the signed update. Your chats and models stay on this device.")
-                            .setPositiveButton("View release") { _, _ -> openUrl(update.releaseUrl) }.setNegativeButton("Later", null).show()
+                        if (appUpdater.show(update)) prefs.edit().putInt("shownVersion", update.versionCode).apply()
                     }
                 }.onFailure { if (manual) notice("Could not check updates", it.message.orEmpty()) }
             }
@@ -2374,7 +2373,29 @@ class MainActivity : Activity() {
         }
         super.onSaveInstanceState(outState)
     }
-    override fun onResume() { super.onResume(); if (pendingGeneration != null) { uiHandler.removeCallbacks(generationHeartbeat); uiHandler.post(generationHeartbeat) }; checkAppUpdates(); uiHandler.removeCallbacks(imageHealthCheck); uiHandler.post(imageHealthCheck) }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        appUpdater.resume()
+        val openUpdates = intent.action == UpdateNotifications.OPEN_UPDATES
+        if (openUpdates) intent.action = null
+        checkAppUpdates(manual = openUpdates)
+        if (pendingGeneration != null) {
+            uiHandler.removeCallbacks(generationHeartbeat)
+            uiHandler.post(generationHeartbeat)
+        }
+        uiHandler.removeCallbacks(imageHealthCheck)
+        uiHandler.post(imageHealthCheck)
+    }
+
+    override fun onPause() {
+        appUpdater.pause()
+        super.onPause()
+    }
     override fun onStop() {
         uiHandler.removeCallbacks(generationHeartbeat); saveDraft(); uiHandler.removeCallbacks(imageHealthCheck)
         super.onStop()
@@ -2385,6 +2406,7 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         uiHandler.removeCallbacks(generationHeartbeat)
         destroyed = true; modelSheet?.dismiss(); updateWorker.shutdownNow(); recognizer?.destroy(); tts?.shutdown()
+        appUpdater.close()
         cancelChatRecognition()
         if (isFinishing) discardChatPhoto(pendingChatMedia)
         catalogWorker.shutdownNow()

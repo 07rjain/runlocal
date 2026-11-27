@@ -4,6 +4,13 @@ Versions are ordered newest first. Earlier entries reconstruct the local develop
 
 ## [Unreleased]
 
+## [1.0.0-rc13] - 2026-11-27
+
+### Added
+
+- **Download and install** downloads the verified update directly in RunLocal with visible progress. Android installs it automatically where allowed and opens its confirmation prompt when required.
+- Update notifications open RunLocal. Installing rc13 from an earlier version requires one final APK download through the existing update link.
+
 ## [1.0.0-rc12] - 2026-11-27
 
 ### Added

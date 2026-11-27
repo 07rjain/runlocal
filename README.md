@@ -2,11 +2,11 @@
 
 A small native Android app for chatting with models on your phone. Two tabs: **Chat** and **Models**. No account, analytics, prompt uploads, or cloud inference. Internet is used for requested Hugging Face model setup, the catalog check when browsing for models, and optional daily GitHub release checks. Downloaded models run locally.
 
-**Candidate: 1.0.0-rc12** · Android 12+ · ARM64 phones. Physical-device acceptance is pending. Application code is Apache-2.0. The bundled Woof runtime has a separate non-commercial license. A stable v1 APK release has not been published.
+**Candidate: 1.0.0-rc13** · Android 12+ · ARM64 phones. Physical-device acceptance is pending. Application code is Apache-2.0. The bundled Woof runtime has a separate non-commercial license. A stable v1 APK release has not been published.
 
 ## Use it
 
-APKs are distributed through [GitHub Releases](https://github.com/07rjain/runlocal/releases). For a local development build, install `dist/runlocal-1.0.0-rc12-arm64.apk` after running the build and packaging steps below. Model weights are downloaded separately. An official APK with the existing app ID and signing certificate and a higher version code can update earlier official builds in place.
+Get the initial APK from [GitHub Releases](https://github.com/07rjain/runlocal/releases). Install rc13 once over an existing official build to enable in-app downloads for subsequent updates. For a local development build, install `dist/runlocal-1.0.0-rc13-arm64.apk` after running the build and packaging steps below. Model weights are downloaded separately.
 
 1. **Models** is a single installed-model library with All, Text, Voice, Image, OCR and Transcription filters. **Add model** opens the catalog. Pick a task to see available models, storage and RAM fit estimates, and a download action. The catalog installs verified files directly from Hugging Face. Pasting a model link, importing files and connecting folders are available under **Other ways to add a model**. Downloads can use mobile data and support pause and resume.
 2. Tap the model name at the top of **Chat** to select an installed text, voice, image, OCR, or transcription model. The composer adapts to the selected model. Voice replies can be replayed and generated images can be saved. Each image prompt generates a separate image.
@@ -97,7 +97,7 @@ Run `python3 scripts/check_website.py website` to check local links and markup. 
 
 [CHANGELOG.md](CHANGELOG.md) records the development versions. [AGENTS.md](AGENTS.md) explains the stack, architecture, invariants and validation workflow for coding agents. [RELEASING.md](RELEASING.md) covers signed/minified APKs, protected signing secrets, versioning, draft releases and update metadata.
 
-Official builds embed their GitHub repository. Users get a foreground notice and, with notification permission, a notification for newer published **stable** releases by default. To receive development versions, enable **Include release candidates (experimental)** in **history → App updates**. Candidate notices are explicitly labeled. Rc7 and older need one manual update to rc8 or later because their checker only reads stable releases. Checks run about once a day when enabled; Android may delay background jobs. They can be disabled in **history → App updates**, which also has a manual check. Updates open the GitHub release page for download and user-approved installation. The default release repository is `07rjain/runlocal`; older installed builds must first update to one containing this feature. Local inference remains usable offline. No chats or model files are sent during checks.
+Official builds check for published **stable** releases by default. Enable **Include release candidates (experimental)** in **history → App updates** to receive development versions. Use **Check now** for a manual check. Automatic checks run about once a day when enabled, subject to Android scheduling. Update notices and notifications lead to **Download and install** in RunLocal. Android may ask you to allow installs from RunLocal the first time and confirm an installation when required by your phone. RunLocal verifies the published hash, app ID, version, and signing certificate before handing off the update. Local inference remains usable offline. Checks and downloads send no chats or model files.
 
 ## Source and release preparation
 
