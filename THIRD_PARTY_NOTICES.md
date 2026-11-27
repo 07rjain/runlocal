@@ -7,6 +7,7 @@ RunLocal application source is licensed under Apache-2.0 (LICENSE and NOTICE). T
 - **GGML**, commit `d49c49e1dd361ba3c0a77c90b5b1404b83969aa8`. Upstream: https://github.com/leejet/ggml. Retain its upstream license and bundled notices.
 - **Gson** is currently supplied transitively by the LiteRT-LM dependency and used for metadata/conversation serialization. Its license and exact resolved version must be included in the final dependency inventory.
 - **Gradle wrapper / Android build tools / Kotlin** are build dependencies with their respective upstream terms.
+- **AndroidX Core 1.17.0**, `androidx.core:core`, Apache-2.0. RunLocal uses FileProvider to grant the camera app temporary access to a private photo output file. [AndroidX Core](https://developer.android.com/jetpack/androidx/releases/core)
 
 No model weights are bundled in the source tree or APK. Users download weights under each model publisher's separate license/access conditions. A LoRA license does not replace its base model's license.
 

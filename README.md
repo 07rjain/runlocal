@@ -2,11 +2,11 @@
 
 A small native Android app for chatting with models on your phone. Two tabs: **Chat** and **Models**. No account, analytics, prompt uploads, or cloud inference. Internet is used for requested Hugging Face model setup, the catalog check when browsing for models, and optional daily GitHub release checks. Downloaded models run locally.
 
-**Candidate: 1.0.0-rc10** · Android 12+ · ARM64 phones. Physical-device acceptance is pending. Application code is Apache-2.0. The bundled Woof runtime has a separate non-commercial license. A stable v1 APK release has not been published.
+**Candidate: 1.0.0-rc11** · Android 12+ · ARM64 phones. Physical-device acceptance is pending. Application code is Apache-2.0. The bundled Woof runtime has a separate non-commercial license. A stable v1 APK release has not been published.
 
 ## Use it
 
-APKs are distributed through [GitHub Releases](https://github.com/07rjain/runlocal/releases). For a local development build, install `dist/runlocal-1.0.0-rc10-arm64.apk` after running the build and packaging steps below. Model weights are downloaded separately. An official APK with the existing app ID and signing certificate and a higher version code can update earlier official builds in place.
+APKs are distributed through [GitHub Releases](https://github.com/07rjain/runlocal/releases). For a local development build, install `dist/runlocal-1.0.0-rc11-arm64.apk` after running the build and packaging steps below. Model weights are downloaded separately. An official APK with the existing app ID and signing certificate and a higher version code can update earlier official builds in place.
 
 1. **Models** is a single installed-model library with All, Text, Voice, Image and OCR filters. In rc10, **Add model** opens a catalog for chat, OCR, speech and image generation. Pick a task to see available models, storage and RAM fit estimates, and a download action. The catalog installs verified files directly from Hugging Face. Pasting a model link, importing files and connecting folders are available under **Other ways to add a model**. Downloads can use mobile data and support pause and resume.
 2. In **Chat**, select an installed text, voice or image model at the top and send a prompt. Text models hold a conversation; voice models speak what you type, with replay in the saved conversation. Image models return images in the chat, with a Save image action. Image prompts are independent generations; they do not automatically carry forward previous images.
@@ -15,7 +15,7 @@ APKs are distributed through [GitHub Releases](https://github.com/07rjain/runloc
 5. The single message bar contains message input, **＋ tools**, microphone, and send/play/stop. Attachments and image options are under **＋**. App update settings are in chat history.
 6. With a GPU-capable LiteRT-LM model selected, tap **＋ tools → CPU / GPU processing → CPU only / Use GPU**. The header shows the selected processor. This choice is saved per model. GPU requests acceleration from the phone’s driver; failures do not silently change to CPU. GGUF chat and image generation use the CPU.
 7. With a supported SD 1.x or SDXL Base image model selected, **＋ → Attach starting image** attaches a starting image for image-to-image generation. **＋ → Image options** opens optional image settings.
-8. For offline transcription, download Whisper or Zipformer in **Models → Add model**, then choose **Chat → ＋ → Transcribe an audio file** and select a mono 16-bit PCM WAV up to two minutes long.
+8. In **Chat → ＋**, choose **Add an image** or **Take a photo** for OCR, or **Add an audio file** or **Record audio** for transcription. Chat offers the matching model catalog when you need to install a model. Choose a mono 16-bit PCM WAV or record up to two minutes, then review the result before inserting it into the draft.
 
 History, drafts, generated images, and model assignments are stored privately on the device. Replies remain attached to the conversation that started them when you switch chats during generation. Image chats retain their component/LoRA selection; removing a required file produces an error instead of silently substituting another model. Text inference uses the model’s chat template with proper user/assistant roles. A native engine/conversation is reused only for its owning chat and processor; switching chats/processors, a failed decode, or rolling the context window recreates it. Replay includes up to six earlier valid entries and the new message. Context is capped at 2,048 tokens; output is capped at 512 tokens, with thinking disabled. Long prompts/replies can still exceed a model’s context limit.
 
@@ -39,7 +39,7 @@ The catalog checks the public GitHub list when opened and keeps the last valid c
 | MOSS Image SFT | Experimental component pipeline and automatic dependency setup for supported LoRAs. Full phone generation has not been verified. |
 | Speech-to-text | Android on-device microphone dictation and experimental Whisper/Zipformer WAV transcription. |
 | Text-to-speech | Android offline voices and experimental Woof, Kitten TTS 2 Pico, BlueV3 English and Kokoro. The APK also includes a Piper adapter for compatible recipes. |
-| OCR | Experimental Cactus Mirage on ARM64 and Tesseract LSTM language packs. Install via **Models → Add model**, then use **Chat → ＋ → Extract text from an image**. See [Mirage setup and validation](docs/MIRAGE-OCR.md). |
+| OCR | Experimental Cactus Mirage on ARM64 and Tesseract LSTM language packs. Use **Add an image** or **Take a photo** from Chat’s **＋** menu. See [Mirage setup and validation](docs/MIRAGE-OCR.md). |
 | Other formats | Video, arbitrary Cactus bundles, `.task`, and arbitrary ONNX graphs require additional runtimes or adapter contracts. |
 
 Arbitrary Hugging Face repositories are not interchangeable. Unsupported architectures, gated/private downloads, multi-shard Diffusers pipelines, and automatic conversion are not implemented. Only reviewed, bundled runtime code executes; downloaded repositories cannot supply executable Python code. Arbitrary speech formats require a compatible adapter and are rejected. Model licenses and access terms apply separately.

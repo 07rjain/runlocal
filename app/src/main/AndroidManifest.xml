@@ -21,6 +21,10 @@
         <service android:name=".ModelDownloadService" android:exported="false" android:process=":downloads" android:foregroundServiceType="dataSync" />
         <service android:name=".SpeechService" android:exported="false" android:process=":speech" />
         <service android:name=".ImageGenerationService" android:exported="false" android:process=":image" android:foregroundServiceType="dataSync|mediaProcessing" android:stopWithTask="false" />
+        <provider android:name=".ChatPhotoProvider" android:authorities="${applicationId}.chat-photo"
+            android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/chat_photo_paths" />
+        </provider>
         <activity android:name=".OcrActivity" android:exported="false" android:process=":ocr"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode" />
         <activity android:name=".MainActivity" android:exported="true" android:windowSoftInputMode="adjustResize" android:configChanges="orientation|screenSize|keyboardHidden|uiMode">

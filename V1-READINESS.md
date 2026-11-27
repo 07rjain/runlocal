@@ -1,6 +1,6 @@
 # Version 1 readiness
 
-The current deliverable is **1.0.0-rc10**, a development candidate with a GitHub-managed model catalog and experimental GGUF chat, TTS, WAV transcription, OCR language packs and SDXL. Physical-device acceptance remains pending.
+The current deliverable is **1.0.0-rc11**, a development candidate that adds image and audio import, camera capture, and recording to Chat’s composer. Physical-device acceptance remains pending.
 
 ## Implemented for this candidate
 
@@ -32,6 +32,7 @@ The current deliverable is **1.0.0-rc10**, a development candidate with a GitHub
 - [ ] Select Woof Juno/Mira in Chat, send text, replay it, switch chats during synthesis and stop/background before playback; verify the correct chat/voice survives restart.
 - [ ] Download Woof in Models; test Juno and Mira in airplane mode, selection after restart, Read aloud on replies/drafts, cancellation/backgrounding, failed-download resume, removal and memory/process-death behavior. Record measured speech load/generation durations.
 - [ ] Test offline microphone/read-aloud, denied permissions, keyboard/rotation, long chats, and accessibility on the phone.
+- [ ] Use the four Chat media actions on an ARM64 phone. Check missing-model setup, camera and microphone cancellation, offline recognition, and insertion into the originating draft.
 - [ ] Verify live streaming, loading states, measured TTFT/token rates, saved metrics and chat switching during generation on CPU/GPU.
 - [ ] Verify the single composer on a phone, notification permission/disable behavior, stable-only and opt-in candidate release detection, channel changes, and signed APK update continuity.
 - [ ] Measure memory, speed, thermal behavior, and battery use. Keep MOSS experimental until full matching base+adapter generation succeeds on target hardware.

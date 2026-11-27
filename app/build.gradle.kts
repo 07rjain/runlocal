@@ -15,12 +15,13 @@ val blueOutput = layout.buildDirectory.dir("blue-phonemizer")
 android {
     namespace = "app.pocket.local"
     compileSdk = 36
+    buildToolsVersion = "36.0.0"
     defaultConfig {
         applicationId = "app.pocket.local"
         minSdk = 31
         targetSdk = 36
-        versionCode = 16
-        versionName = "1.0.0-rc10"
+        versionCode = 17
+        versionName = "1.0.0-rc11"
         ndk { abiFilters += runlocalAbis }
         buildConfigField("String", "RELEASE_REPOSITORY", "\"$releaseRepository\"")
         externalNativeBuild { cmake { arguments += listOf("-DANDROID_STL=c++_shared"); targets += listOf("pocket_diffusion", "pocket_ocr") } }
@@ -90,6 +91,7 @@ chaquopy {
 }
 
 dependencies {
+    implementation("androidx.core:core:1.17.0")
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.1")
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.27.0")
     implementation(project(":llama-runtime"))

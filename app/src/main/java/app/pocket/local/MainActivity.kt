@@ -717,10 +717,10 @@ class MainActivity : Activity() {
 
     private fun showComposerTools(isImage: Boolean) {
         val actions = mutableListOf<Pair<String, () -> Unit>>()
-        if (MirageModel.supportedAbi || installedRecipes(ModelTask.OCR).isNotEmpty())
-            actions.add("Extract text from an image" to { chooseOcr() })
-        if (installedRecipes(ModelTask.DICTATE).isNotEmpty())
-            actions.add("Transcribe an audio file" to { chooseTranscription() })
+        actions.add("Add an image" to { chooseRecognitionModel(ModelTask.OCR, RecognitionInput.FILE) })
+        actions.add("Take a photo" to { chooseRecognitionModel(ModelTask.OCR, RecognitionInput.CAMERA) })
+        actions.add("Add an audio file" to { chooseRecognitionModel(ModelTask.DICTATE, RecognitionInput.FILE) })
+        actions.add("Record audio" to { chooseRecognitionModel(ModelTask.DICTATE, RecognitionInput.RECORDING) })
         if (isImage && chat.model in listOf("image:sd15", "image:sdxl")) {
             actions.add("Attach starting image" to { chooseStartingImage() })
             if (!getSharedPreferences("image-ui", MODE_PRIVATE).getString("input", "").isNullOrEmpty()) actions.add("Remove starting image" to {
@@ -741,11 +741,13 @@ class MainActivity : Activity() {
     }
 
     @Suppress("DEPRECATION")
-    private fun openOcr(targetChat: String? = null, download: Boolean = false, recipeId: String? = null) {
+    private fun openOcr(targetChat: String? = null, download: Boolean = false, recipeId: String? = null,
+                        input: RecognitionInput? = null) {
         startActivityForResult(Intent(this, OcrActivity::class.java).apply {
             if (targetChat != null) putExtra(OcrActivity.CHAT_ID, targetChat)
             if (download) putExtra(OcrActivity.START_DOWNLOAD, true)
             if (recipeId != null) putExtra(OcrActivity.RECIPE_ID, recipeId)
+            if (input != null) putExtra(OcrActivity.INPUT, input.name)
         }, OcrActivity.REQUEST)
     }
 
@@ -753,19 +755,28 @@ class MainActivity : Activity() {
         RecipeAdapter.forBackend(it.backend)?.task == task && speechModels.installed(it)
     }
 
-    private fun chooseOcr() {
-        val choices = installedRecipes(ModelTask.OCR)
-        if (choices.isEmpty()) { readImageText(); return }
-        val titles = choices.map { it.title } + if (MirageModel.supportedAbi) listOf(MirageModel.title) else emptyList()
-        AlertDialog.Builder(this).setTitle("Choose an OCR model").setItems(titles.toTypedArray()) { _, index ->
-            readImageText(recipe = choices.getOrNull(index))
-        }.show()
-    }
-
-    private fun chooseTranscription() {
-        val choices = installedRecipes(ModelTask.DICTATE)
-        AlertDialog.Builder(this).setTitle("Choose a transcription model")
-            .setItems(choices.map { it.title }.toTypedArray()) { _, index -> readImageText(recipe = choices[index]) }.show()
+    private fun chooseRecognitionModel(task: ModelTask, input: RecognitionInput) {
+        val choices = installedRecipes(task)
+        val ocr = task == ModelTask.OCR
+        val mirageReady = ocr && MirageModel.supportedAbi && MirageModel.installed(this)
+        val titles = choices.map { it.title } + if (mirageReady) listOf(MirageModel.title) else emptyList()
+        when (titles.size) {
+            0 -> AlertDialog.Builder(this)
+                .setTitle(if (ocr) "Add an OCR model" else "Add a transcription model")
+                .setMessage(if (ocr) "Install a model to read text from photos. Then return to this chat to add an image or take a photo."
+                    else "Install a model to transcribe audio offline. Then return to this chat to add or record audio.")
+                .setPositiveButton("Browse models") { _, _ ->
+                    refreshModelCatalog()
+                    showCatalogTask(task)
+                }
+                .setNegativeButton("Cancel", null).show()
+            1 -> readImageText(recipe = choices.firstOrNull(), input = input)
+            else -> AlertDialog.Builder(this)
+                .setTitle(if (ocr) "Choose an OCR model" else "Choose a transcription model")
+                .setItems(titles.toTypedArray()) { _, index ->
+                    readImageText(recipe = choices.getOrNull(index), input = input)
+                }.setNegativeButton("Cancel", null).show()
+        }
     }
 
     private fun useInstalledRecipe(spec: SpeechModelSpec) {
@@ -773,7 +784,8 @@ class MainActivity : Activity() {
         else { navigate("Chat"); readImageText(recipe = spec) }
     }
 
-    private fun readImageText(download: Boolean = false, recipe: SpeechModelSpec? = null) {
+    private fun readImageText(download: Boolean = false, recipe: SpeechModelSpec? = null,
+                              input: RecognitionInput? = null) {
         if (busy || speechActive || imageStore.running()) {
             toast("Wait for the current operation to finish.")
             return
@@ -791,7 +803,7 @@ class MainActivity : Activity() {
                 busy = false
                 render()
                 release.onFailure { notice("Could not release the text model", it.message.orEmpty()); return@runOnUiThread }
-                if (screen == "Chat" && chat.id == origin) openOcr(origin, download, recipe?.id)
+                if (screen == "Chat" && chat.id == origin) openOcr(origin, download, recipe?.id, input)
             }
         }
     }

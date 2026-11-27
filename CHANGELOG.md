@@ -4,17 +4,36 @@ Versions are ordered newest first. Earlier entries reconstruct the local develop
 
 ## [Unreleased]
 
+## [1.0.0-rc11] - 2026-11-27
+
+### Added
+
+- In Chat’s **＋** menu, choose **Add an image**, **Take a photo**, **Add an audio file**, or **Record audio**. Review, copy, or insert the extracted text into the chat draft.
+- Chat links to the matching model catalog when a compatible OCR or transcription model needs to be installed.
+
+### Known limits
+
+- Audio imports accept mono 16-bit PCM WAV files up to two minutes. Recordings have the same duration limit. Camera, microphone, and in-place upgrade behavior still need physical-device testing.
+
 ## [1.0.0-rc10] - 2026-11-25
 
 ### Added
+
 - A task-based model catalog for chat, OCR, speech and image generation, with direct downloads, device fit estimates and measured local timings.
 - Model catalog edits published on GitHub appear independently of APK releases. The app keeps a valid offline copy, and installed models and downloads survive listing removals.
-- Experimental Kitten TTS 2 Pico English voices in **Models → Add model → Speak text**, using pinned weights and CPU ONNX Runtime in RunLocal’s speech process.
-- Versioned catalog adapters for GGUF chat, SDXL Base images, BlueV3/Kokoro/Piper speech, Whisper/Zipformer WAV transcription, and Tesseract OCR language packs.
 - Catalog recipes can pin multiple files and speaker IDs. Installed recipes retain their identity and metadata when GitHub listings change.
 
+### Bundled adapter support
+
+- **Chat** supports compatible `.litertlm` exports through LiteRT-LM and adds CPU llama.cpp support for complete instruct GGUF files. The catalog includes Qwen3, LFM3, and Qwen2.5 GGUF.
+- **Image generation** supports Stable Diffusion 1.x and adds SDXL Base for text-to-image and image-to-image on CPU. The experimental MOSS Image SFT setup remains available.
+- **Text-to-speech** supports Underdog Woof and Android offline voices. Rc10 adds Kitten TTS 2 Pico English, BlueV3 Noa, Kokoro INT8, and a Piper adapter for compatible recipes.
+- **Transcription** supports Android offline microphone dictation and adds downloadable Whisper Tiny English and Zipformer Small English for short mono PCM WAV files.
+- **OCR** supports Cactus Mirage for printed Latin-script text on ARM64 and adds Tesseract LSTM packs for English and Hindi.
+
 ### Known limits
-- The new adapters are experimental. Physical-device acceptance and SDXL generation tests are pending. Piper needs a compatible catalog recipe with a pinned pronunciation lexicon.
+
+- The new adapters are experimental. Physical-device acceptance and SDXL generation tests are pending. Piper is bundled and needs a catalog listing with a pinned, compatible pronunciation lexicon.
 
 ## [1.0.0-rc9] - 2026-11-19
 

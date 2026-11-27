@@ -107,7 +107,8 @@ internal fun readMonoWav(file: File): Pair<Int, FloatArray> = RandomAccessFile(f
         }
         input.seek(start + size + (size and 1))
     }
-    require(rate > 0 && dataOffset > 0 && dataLength in 2..(rate.toLong() * 120 * 2) && dataLength % 2 == 0L) { error }
+    require(rate > 0 && dataOffset > 0 && dataLength in 2..(rate.toLong() * TRANSCRIPTION_MAX_SECONDS * 2) &&
+        dataLength % 2 == 0L) { error }
     input.seek(dataOffset)
     val bytes = ByteArray(dataLength.toInt()).also(input::readFully)
     val shorts = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
