@@ -4,6 +4,16 @@ Versions are ordered newest first. Earlier entries reconstruct the local develop
 
 ## [Unreleased]
 
+## [1.0.0-rc12] - 2026-11-27
+
+### Added
+
+- Choose installed OCR and transcription models from Chat’s model picker. The composer switches to image and camera controls for OCR, or WAV and microphone controls for transcription. Results appear in the conversation and can be copied.
+
+### Known limits
+
+- Audio imports accept mono 16-bit PCM WAV files up to two minutes. Physical-device testing of the picker, camera, microphone, and offline recognition is pending.
+
 ## [1.0.0-rc11] - 2026-11-27
 
 ### Added

@@ -44,6 +44,20 @@ class ChatRepository(private val directory: File) {
     fun select(id: String) { require(get(id) != null); File(directory, "selected").writeText(id) }
     fun selected(): SavedChat? = runCatching { get(File(directory, "selected").readText()) }.getOrNull()
     fun delete(id: String) { check(file(id).delete()) { "Could not delete this conversation." } }
+    internal fun addRecognitionResult(chatId: String, modelKey: String, requestId: String,
+                                      input: RecognitionInput, text: String): Boolean {
+        val source = RecognitionMode.fromModel(modelKey)?.sourceLabel(input) ?: return false
+        if (requestId.isBlank() || text.isBlank()) return false
+        val chat = get(chatId) ?: return false
+        if (chat.model != modelKey || chat.messages.any { it.turn == requestId }) return false
+        if (chat.messages.isEmpty()) chat.title = text.lineSequence().first { it.isNotBlank() }.trim().take(50)
+        chat.messages.add(ChatLine("user", source, turn = requestId))
+        chat.messages.add(ChatLine("assistant", text, turn = requestId))
+        chat.updatedAt = System.currentTimeMillis()
+        save(chat)
+        return true
+    }
+
     fun finish(chatId: String, replyId: String, text: String, image: String = "", failed: Boolean = false, metrics: GenerationMetrics? = null): Boolean {
         val chat = get(chatId) ?: return false
         val index = chat.messages.indexOfFirst { it.id == replyId && it.state == "pending" }

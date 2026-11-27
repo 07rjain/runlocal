@@ -39,6 +39,33 @@ class ChatRepositoryTest {
         assertEquals(chat.imageAssets, reopened.imageAssets)
         assertEquals("trigger_a", reopened.trigger)
     }
+
+    @Test fun recognitionStaysWithOriginalChatAndIgnoresDuplicateDelivery() {
+        val directory = temporary.newFolder()
+        val repo = ChatRepository(directory)
+        val scan = repo.create(RecognitionMode.OCR.modelKey("tesseract-en"), "Tesseract")
+        scan.draft = "Keep this draft"
+        repo.save(scan)
+        val other = repo.create("text:one", "Text")
+        assertTrue(repo.addRecognitionResult(scan.id, scan.model, "capture-1", RecognitionInput.CAMERA, "Departure at 9:30"))
+        assertFalse(repo.addRecognitionResult(scan.id, scan.model, "capture-1", RecognitionInput.CAMERA, "Late duplicate"))
+        val reopened = ChatRepository(directory)
+        val saved = requireNotNull(reopened.get(scan.id))
+        assertEquals("Keep this draft", saved.draft)
+        assertEquals(listOf("Photo", "Departure at 9:30"), saved.messages.map { it.text })
+        assertEquals(other.id, reopened.selected()?.id)
+        assertTrue(requireNotNull(reopened.get(other.id)).messages.isEmpty())
+    }
+
+    @Test fun recognitionRejectsAnIncompatibleInputOrChangedModel() {
+        val repo = repository()
+        val speech = repo.create(RecognitionMode.TRANSCRIPTION.modelKey("whisper-small"), "Whisper")
+        assertFalse(repo.addRecognitionResult(speech.id, speech.model, "capture-2", RecognitionInput.CAMERA, "Text"))
+        assertFalse(repo.addRecognitionResult(speech.id, RecognitionMode.TRANSCRIPTION.modelKey("zipformer"), "capture-2",
+            RecognitionInput.FILE, "Text"))
+        assertTrue(repo.addRecognitionResult(speech.id, speech.model, "capture-2", RecognitionInput.RECORDING, "Hello"))
+        assertEquals(listOf("Recording", "Hello"), requireNotNull(repo.get(speech.id)).messages.map { it.text })
+    }
     @Test fun failedReplyIsSavedWithoutDeletingOtherTurns() {
         val repo = repository(); val chat = repo.create()
         val reply = ChatLine("assistant", "Working", state = "pending", turn = "one")

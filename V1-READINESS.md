@@ -1,10 +1,10 @@
 # Version 1 readiness
 
-The current deliverable is **1.0.0-rc11**, a development candidate that adds image and audio import, camera capture, and recording to Chat’s composer. Physical-device acceptance remains pending.
+The current deliverable is **1.0.0-rc12**, a development candidate that adds OCR and transcription models to the Chat picker and displays recognition results in the conversation. Physical-device acceptance remains pending.
 
 ## Implemented for this candidate
 
-- [x] Exactly Chat and Models in bottom navigation, with a unified installed-model library and shared text/voice/image picker.
+- [x] Exactly Chat and Models in bottom navigation, with a unified installed-model library and a shared picker for text, voice, image, OCR and transcription.
 - [x] Model selector, history drawer, new/switch/delete conversations.
 - [x] Continuous text chat, persisted drafts/history, migration of previous chat history.
 - [x] Text/image replies associated with their originating conversation.
@@ -32,7 +32,7 @@ The current deliverable is **1.0.0-rc11**, a development candidate that adds ima
 - [ ] Select Woof Juno/Mira in Chat, send text, replay it, switch chats during synthesis and stop/background before playback; verify the correct chat/voice survives restart.
 - [ ] Download Woof in Models; test Juno and Mira in airplane mode, selection after restart, Read aloud on replies/drafts, cancellation/backgrounding, failed-download resume, removal and memory/process-death behavior. Record measured speech load/generation durations.
 - [ ] Test offline microphone/read-aloud, denied permissions, keyboard/rotation, long chats, and accessibility on the phone.
-- [ ] Use the four Chat media actions on an ARM64 phone. Check missing-model setup, camera and microphone cancellation, offline recognition, and insertion into the originating draft.
+- [ ] Select an OCR model and a transcription model from Chat on an ARM64 phone. Check each composer action, missing-model setup, camera and microphone cancellation, offline recognition, and copyable results in the originating conversation. Also verify the text composer’s media tools still insert into the draft.
 - [ ] Verify live streaming, loading states, measured TTFT/token rates, saved metrics and chat switching during generation on CPU/GPU.
 - [ ] Verify the single composer on a phone, notification permission/disable behavior, stable-only and opt-in candidate release detection, channel changes, and signed APK update continuity.
 - [ ] Measure memory, speed, thermal behavior, and battery use. Keep MOSS experimental until full matching base+adapter generation succeeds on target hardware.

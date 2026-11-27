@@ -4,6 +4,9 @@ import android.Manifest
 import android.app.Activity
 import android.app.ActivityManager
 import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -15,15 +18,23 @@ import android.graphics.drawable.RippleDrawable
 import android.content.res.ColorStateList
 import android.net.Uri
 import android.os.*
+import android.provider.MediaStore
 import android.speech.*
 import android.speech.tts.TextToSpeech
 import android.view.*
 import android.view.inputmethod.InputMethodManager
 import android.widget.*
+import androidx.core.content.FileProvider
 import java.util.Locale
+import java.util.UUID
 import java.util.concurrent.Executors
 import java.io.File
 import org.json.JSONObject
+
+private const val CHAT_MEDIA_FILE = 324
+private const val CHAT_MEDIA_CAMERA = 325
+private const val CHAT_MEDIA_MIC_PERMISSION = 326
+private const val CHAT_PHOTO_GRANTS = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
 
 class MainActivity : Activity() {
     private val ink = Color.rgb(34, 47, 39)
@@ -99,6 +110,24 @@ class MainActivity : Activity() {
     private var speechLaunch = 0
     private var speechTiming: Pair<String, Long>? = null
     private var sendControl: FrameLayout? = null
+    private data class ChatMedia(val chatId: String, val model: String, val input: RecognitionInput,
+                                 val token: String = UUID.randomUUID().toString(), val photo: String? = null)
+    private enum class RecordingPhase { OPENING, RECORDING, FINISHING }
+    private var pendingChatMedia: ChatMedia? = null
+    private var activeChatMedia: ChatMedia? = null
+    private var recordingPhase: RecordingPhase? = null
+    private var recognitionNotice: Pair<String, String>? = null
+    private val recognitionClient by lazy {
+        RecognitionClient(this, onRecording = {
+            recordingPhase = RecordingPhase.RECORDING
+            busyMessage = "Recording audio… Up to two minutes."
+            render()
+        }, onReading = {
+            recordingPhase = null
+            busyMessage = "Transcribing on this phone…"
+            render()
+        }, onComplete = ::completeChatRecognition)
+    }
     private var libraryStatus: TextView? = null
     private var modelFilter = "All"
     private var modelSheet: android.app.Dialog? = null
@@ -153,6 +182,17 @@ class MainActivity : Activity() {
         pendingModelRole = savedInstanceState?.getString("pendingModelRole")
         pendingImageFamily = savedInstanceState?.getString("pendingImageFamily") ?: "sd15"
         pendingExport = savedInstanceState?.getString("pendingExport")
+        pendingChatMedia = savedInstanceState?.getBundle("chatMedia")?.let { media ->
+            val chatId = media.getString("chatId")
+            val model = media.getString("model")
+            val input = RecognitionInput.entries.firstOrNull { it.name == media.getString("input") }
+            val token = media.getString("token")
+            val photo = media.getString("photo")
+            if (chatId != null && model != null && input != null && token != null &&
+                (photo == null || File(photo).name == photo && photo.startsWith("photo-") && photo.endsWith(".jpg"))) {
+                ChatMedia(chatId, model, input, token, photo)
+            } else null
+        }
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(imageUpdates, IntentFilter(ImageGenerationService.UPDATE), RECEIVER_NOT_EXPORTED)
         else registerReceiver(imageUpdates, IntentFilter(ImageGenerationService.UPDATE), "$packageName.INTERNAL_UPDATES", null)
         chats = ChatRepository(File(filesDir, "conversations"))
@@ -230,7 +270,7 @@ class MainActivity : Activity() {
         addView(Symbol(kind, if (primary) Color.WHITE else green), FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER))
         clickable(this, if (primary) green else Color.TRANSPARENT, 16, action)
     }
-    private fun modeForChat() = when {
+    private fun modeForChat() = RecognitionMode.fromModel(chat.model)?.kind?.title ?: when {
         chat.model.startsWith("image:") -> "Image"
         chat.model.startsWith("speech:") -> "Speech"
         else -> "Text"
@@ -244,6 +284,10 @@ class MainActivity : Activity() {
     }
     private fun render() {
         autoSelectModel()
+        activeChatMedia?.let { media ->
+            if ((media.chatId == chat.id && media.model != chat.model) ||
+                (recordingPhase != null && (screen != "Chat" || media.chatId != chat.id))) cancelChatRecognition()
+        }
         val previousScroll = if (::body.isInitialized) body.parent as? ScrollView else null
         val sameChat = screen == "Chat" && renderedChatId == chat.id
         val previousY = previousScroll?.scrollY ?: 0
@@ -259,7 +303,7 @@ class MainActivity : Activity() {
         scroll.addView(body)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         if (screen == "Chat") chatPage() else models()
-        if (busy) {
+        if (busy && !(screen == "Chat" && activeChatMedia?.chatId == chat.id)) {
             statusView = text(busyMessage, 12f, green).apply { setPadding(dp(24), dp(8), dp(24), dp(8)); accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE }
             val loading = row().apply { setPadding(dp(18), 0, dp(12), 0) }
             loading.addView(ProgressBar(this), LinearLayout.LayoutParams(dp(18), dp(18)))
@@ -309,10 +353,19 @@ class MainActivity : Activity() {
             key = "text:${model.id}"; title = model.name
         }
         val assets = if (key.startsWith("image:")) (imageStore.roles() + ModelRole.LORA).mapNotNull { role -> imageStore.assigned(role)?.let { role.name to it.id } }.toMap() else emptyMap()
+        bindChatModel(key, title, assets, if (key.startsWith("image:")) imageStore.activeTrigger else "")
+    }
+
+    private fun bindChatModel(key: String, title: String, assets: Map<String, String> = emptyMap(), trigger: String = "") {
         if (chat.model == key && chat.imageAssets == assets) return
-        if (history.isNotEmpty() && chat.model.isNotEmpty()) { chat = chats.create(); draft = "" }
+        val recognitionChanged = RecognitionMode.fromModel(chat.model) != RecognitionMode.fromModel(key)
+        if (chat.model.isNotEmpty() && (history.isNotEmpty() || recognitionChanged && draft.isNotBlank())) {
+            chat = chats.create()
+            draft = ""
+            editor = null
+        }
         chat.model = key; chat.modelLabel = title; chat.imageAssets = assets
-        chat.trigger = if (key.startsWith("image:")) imageStore.activeTrigger else ""
+        chat.trigger = trigger
         saveChat()
     }
 
@@ -348,8 +401,9 @@ class MainActivity : Activity() {
                 "${spec.voices.joinToString { it.name }} · ${size(spec.downloadBytes)}", spec.downloadBytes))
         }
         speechModels.recipes().filter { it.voices.isEmpty() && speechModels.installed(it) }.forEach { spec ->
-            val kind = if (RecipeAdapter.forBackend(spec.backend)?.task == ModelTask.OCR) LibraryKind.OCR else LibraryKind.TRANSCRIPTION
-            add(LibraryEntry("recipe:${spec.id}", spec.title, kind, "${size(spec.downloadBytes)} · On-device", spec.downloadBytes))
+            val recognition = RecognitionMode.fromTask(RecipeAdapter.forBackend(spec.backend)?.task) ?: return@forEach
+            add(LibraryEntry(recognition.modelKey(spec.id), spec.title, recognition.kind,
+                "${size(spec.downloadBytes)} · On-device", spec.downloadBytes))
         }
         imageStore.configuredProfiles().forEach { profile ->
             val files = (imageStore.roles(profile) + ModelRole.LORA).mapNotNull { imageStore.assigned(it, profile) }.distinctBy { it.id }
@@ -358,7 +412,7 @@ class MainActivity : Activity() {
                 "${size(bytes)} · ${files.size} files", bytes))
         }
         if (MirageModel.supportedAbi && MirageModel.installed(this@MainActivity)) {
-            add(LibraryEntry("ocr:mirage", MirageModel.title, LibraryKind.OCR,
+            add(LibraryEntry(RecognitionMode.MIRAGE_KEY, MirageModel.title, LibraryKind.OCR,
                 "${size(MirageModel.size)} · Offline Latin-script text", MirageModel.size))
         }
     }
@@ -373,12 +427,18 @@ class MainActivity : Activity() {
                 imageStore.selectLocalProfile(entry.key.removePrefix("image:")); mode = "Image"; bindSelectedModel(); navigate("Chat")
             }.onFailure { notice("Could not select model", it.message.orEmpty()) }
             LibraryKind.VOICE -> chooseSpeechVoice(speechModels.find(entry.key.removePrefix("speech:")))
-            LibraryKind.TRANSCRIPTION -> useInstalledRecipe(speechModels.find(entry.key.removePrefix("recipe:")))
-            LibraryKind.OCR -> {
-                if (entry.key == "ocr:mirage") { navigate("Chat"); readImageText() }
-                else useInstalledRecipe(speechModels.find(entry.key.removePrefix("recipe:")))
-            }
+            LibraryKind.TRANSCRIPTION, LibraryKind.OCR -> selectRecognitionModel(entry.key, entry.title)
         }
+    }
+
+    private fun selectRecognitionModel(key: String, title: String) {
+        saveDraft()
+        if (speechActive) stopSpeech()
+        stopDictation()
+        window.insetsController?.hide(WindowInsets.Type.ime())
+        bindChatModel(key, title)
+        mode = modeForChat()
+        navigate("Chat")
     }
 
     private fun chooseSpeechVoice(spec: SpeechModelSpec) {
@@ -397,11 +457,25 @@ class MainActivity : Activity() {
     private fun showModelPicker() {
         saveDraft()
         showPanel("Choose a model") { panel, dialog ->
-            val entries = libraryEntries().filter { it.kind in listOf(LibraryKind.TEXT, LibraryKind.VOICE, LibraryKind.IMAGE) }
+            val entries = libraryEntries()
             if (entries.isEmpty()) add(panel, text("Add your first model to get started.", 14f, muted), top = 8)
-            listOf(LibraryKind.TEXT, LibraryKind.VOICE, LibraryKind.IMAGE).forEach { kind ->
+            LibraryKind.entries.forEach { kind ->
                 val models = entries.filter { it.kind == kind }
-                if (models.isNotEmpty()) add(panel, label(if (kind == LibraryKind.TEXT) "Text chat" else if (kind == LibraryKind.VOICE) "Text to speech" else "Image generation"), top = 18)
+                val recognition = RecognitionMode.entries.firstOrNull { it.kind == kind }
+                if (models.isNotEmpty() || recognition != null) add(panel, label(when (kind) {
+                    LibraryKind.TEXT -> "Text chat"
+                    LibraryKind.VOICE -> "Text to speech"
+                    LibraryKind.IMAGE -> "Image generation"
+                    LibraryKind.OCR, LibraryKind.TRANSCRIPTION -> kind.title
+                }), top = 18)
+                if (models.isEmpty() && recognition != null) {
+                    val title = if (recognition == RecognitionMode.OCR) "Add an OCR model" else "Add a transcription model"
+                    val detail = if (recognition == RecognitionMode.OCR) "Read text from images" else "Turn audio files and recordings into text"
+                    add(panel, pickerRow(title, detail, icon = recognition.task.icon) {
+                        dialog.dismiss()
+                        showRecognitionCatalog(recognition.task)
+                    }, top = 8)
+                }
                 models.forEach { entry ->
                     if (kind == LibraryKind.VOICE) {
                         val spec = speechModels.find(entry.key.removePrefix("speech:"))
@@ -541,6 +615,7 @@ class MainActivity : Activity() {
     private fun chatPage() {
         val isImage = chat.model.startsWith("image:")
         val isSpeech = chat.model.startsWith("speech:")
+        val recognition = RecognitionMode.fromModel(chat.model)
         val voiceSelection = speechChatSelection(chat.model, speechModels.recipes())
         val top = row().apply { setPadding(dp(12), dp(4), dp(12), dp(8)) }
         top.addView(iconButton("history", "Chat history") { showHistory() }, LinearLayout.LayoutParams(dp(48), dp(48)))
@@ -549,10 +624,11 @@ class MainActivity : Activity() {
             maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
         })
         val subtitle = when {
+            recognition != null -> "${recognition.kind.title} · On device"
             isSpeech -> "Text to speech · ${voiceSelection?.second?.name ?: "Voice unavailable"}"
             isImage -> "Image generation · CPU"
             chat.model.isNotBlank() -> "Text chat · ${selectedProcessor().title}"
-            else -> "Text, voice & images · on device"
+            else -> "On-device models"
         }
         add(model, text(subtitle, 11f, muted), top = 2)
         clickable(model, Color.TRANSPARENT, 12) { showModelPicker() }
@@ -563,17 +639,21 @@ class MainActivity : Activity() {
         if (history.isEmpty()) {
             space(body, 56)
             add(body, FrameLayout(this).apply {
-                addView(Symbol(if (isSpeech) "voice" else if (isImage) "image" else "pocket", green).apply {
+                addView(Symbol(recognition?.task?.icon ?: if (isSpeech) "voice" else if (isImage) "image" else "pocket", green).apply {
                     importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                 }, FrameLayout.LayoutParams(dp(36), dp(36)))
             }, height = 36)
             add(body, text(when {
                 isSpeech -> "Give your words a voice."
                 isImage -> "What will you create?"
+                recognition == RecognitionMode.OCR -> "Read text from an image"
+                recognition == RecognitionMode.TRANSCRIPTION -> "Turn audio into text"
                 else -> "What’s on your mind?"
             }, 28f, ink, true), top = 24)
             add(body, text(when {
-                chat.model.isBlank() -> "Choose a model to chat, speak text or create an image."
+                chat.model.isBlank() -> "Choose a model to get started."
+                recognition == RecognitionMode.OCR -> "Add an image or take a photo below."
+                recognition == RecognitionMode.TRANSCRIPTION -> "Add a mono 16-bit PCM WAV file or record up to two minutes."
                 isSpeech -> "Type below and send to hear ${voiceSelection?.second?.name ?: "your selected voice"}."
                 isImage -> "Describe an image. Each prompt creates something new."
                 else -> "A conversation that stays on your phone."
@@ -585,7 +665,12 @@ class MainActivity : Activity() {
             val box = column().apply {
                 setPadding(dp(16), dp(14), dp(16), dp(14)); background = shape(if (user) pale else Color.WHITE, 20)
             }
-            if (!user) add(box, label(if (isSpeech) "Voice · ${voiceSelection?.second?.name ?: "Speech"}" else "RunLocal"))
+            if (!user) add(box, label(when {
+                recognition == RecognitionMode.OCR -> "Extracted text"
+                recognition == RecognitionMode.TRANSCRIPTION -> "Transcript"
+                isSpeech -> "Voice · ${voiceSelection?.second?.name ?: "Speech"}"
+                else -> "RunLocal"
+            }))
             val running = pendingGeneration?.takeIf { it.chatId == chat.id && it.replyId == message.id }
             if (isSpeech && !user && message.state == "complete") {
                 val play = row()
@@ -615,7 +700,14 @@ class MainActivity : Activity() {
                     if (running != null) { streamingTextView = messageText; streamingTimingView = timing }
                 }
             }
-            val hasListen = !isSpeech && !user && message.state == "complete" && message.image.isBlank()
+            val hasListen = recognition == null && !isSpeech && !user && message.state == "complete" && message.image.isBlank()
+            if (recognition != null && !user && message.state == "complete") {
+                add(box, button("Copy text", false) {
+                    getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Recognized text", message.text))
+                    // Android 13 and later shows its own clipboard confirmation.
+                    if (Build.VERSION.SDK_INT < 33) toast("Text copied.")
+                }, top = 8)
+            }
             message.metrics?.takeUnless { hasListen }?.let { metrics ->
                 add(box, text(metrics.caption() + "  ⓘ", 11f, muted).apply {
                     minHeight = dp(48); gravity = Gravity.CENTER_VERTICAL; isClickable = true; isFocusable = true
@@ -654,6 +746,10 @@ class MainActivity : Activity() {
                 topMargin = dp(14); gravity = if (user) Gravity.END else Gravity.START
                 if (user) leftMargin = dp(24)
             })
+        }
+        if (recognition != null) {
+            recognitionComposer(recognition)
+            return
         }
         val composer = column().apply {
             setPadding(dp(8), dp(4), dp(8), dp(6)); background = shape(Color.WHITE, 24, line)
@@ -697,6 +793,184 @@ class MainActivity : Activity() {
         speechStatusView?.let { add(composer, it) }
         root.addView(composer, LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(14), dp(6), dp(14), dp(8)) })
         refreshSendControl(); refreshListenControl()
+    }
+
+    private fun recognitionComposer(recognition: RecognitionMode) {
+        val composer = column().apply {
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+            background = shape(Color.WHITE, 24, line)
+        }
+        val installed = recognitionInstalled(chat.model)
+        val active = activeChatMedia?.chatId == chat.id
+        val status = when {
+            active -> busyMessage
+            !installed -> "This model is no longer installed."
+            else -> recognitionNotice?.takeIf { it.first == chat.id }?.second
+        }
+        status?.let {
+            add(composer, text(it, 12f, if (active) green else muted).apply {
+                setPadding(dp(10), dp(4), dp(10), dp(8))
+                accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+            })
+        }
+        val controls = row()
+        fun addAction(title: String, primary: Boolean, enabled: Boolean = true, action: () -> Unit) {
+            controls.addView(button(title, primary, action).apply {
+                isEnabled = enabled
+                alpha = if (enabled) 1f else .45f
+            }, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                if (controls.childCount > 0) leftMargin = dp(6)
+            })
+        }
+        when {
+            active -> {
+                addAction("Cancel", false) { cancelChatRecognition(); render() }
+                if (recordingPhase == RecordingPhase.RECORDING) addAction("Stop and transcribe", true) {
+                    recordingPhase = RecordingPhase.FINISHING
+                    busyMessage = "Finishing recording…"
+                    recognitionClient.finishRecording()
+                    render()
+                }
+            }
+            !installed ->
+                addAction("Browse models", true, !busy) { showRecognitionCatalog(recognition.task) }
+            recognition == RecognitionMode.OCR -> {
+                addAction("Add an image", false, !busy) { captureChatMedia(RecognitionInput.FILE) }
+                addAction("Take a photo", true, !busy) { captureChatMedia(RecognitionInput.CAMERA) }
+            }
+            else -> {
+                addAction("Add an audio file", false, !busy) { captureChatMedia(RecognitionInput.FILE) }
+                addAction("Record audio", true, !busy) { captureChatMedia(RecognitionInput.RECORDING) }
+            }
+        }
+        add(composer, controls)
+        root.addView(composer, LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(14), dp(6), dp(14), dp(8)) })
+    }
+
+    private fun recognitionInstalled(key: String): Boolean {
+        if (key == RecognitionMode.MIRAGE_KEY) return MirageModel.supportedAbi && MirageModel.installed(this)
+        val recognition = RecognitionMode.fromModel(key) ?: return false
+        return installedRecipes(recognition.task).any { recognition.modelKey(it.id) == key }
+    }
+
+    private fun showRecognitionCatalog(task: ModelTask) {
+        refreshModelCatalog()
+        showCatalogTask(task)
+    }
+
+    private val chatPhotoDirectory get() = File(cacheDir, "chat-camera")
+
+    private fun chatPhotoUri(file: File): Uri = FileProvider.getUriForFile(this, "$packageName.chat-photo", file)
+
+    @Suppress("DEPRECATION")
+    private fun captureChatMedia(input: RecognitionInput) {
+        if (busy || imageStore.running() || pendingChatMedia != null) {
+            toast("Wait for the current operation to finish.")
+            return
+        }
+        val recognition = RecognitionMode.fromModel(chat.model) ?: return
+        if (recognition.sourceLabel(input) == null) return
+        if (!recognitionInstalled(chat.model)) { showRecognitionCatalog(recognition.task); return }
+        recognitionNotice = null
+        if (speechActive) stopSpeech() else tts?.stop()
+        stopDictation()
+        val media = ChatMedia(chat.id, chat.model, input)
+        pendingChatMedia = media
+        try {
+            when (input) {
+                RecognitionInput.FILE -> startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                    type = if (recognition == RecognitionMode.OCR) "image/*" else "audio/*"
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                }, CHAT_MEDIA_FILE)
+                RecognitionInput.CAMERA -> {
+                    check(chatPhotoDirectory.mkdirs() || chatPhotoDirectory.isDirectory) { "Could not create a temporary photo folder." }
+                    val file = File.createTempFile("photo-", ".jpg", chatPhotoDirectory)
+                    pendingChatMedia = media.copy(photo = file.name)
+                    val uri = chatPhotoUri(file)
+                    startActivityForResult(Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
+                        putExtra(MediaStore.EXTRA_OUTPUT, uri)
+                        clipData = ClipData.newRawUri("Chat photo", uri)
+                        addFlags(CHAT_PHOTO_GRANTS)
+                    }, CHAT_MEDIA_CAMERA)
+                }
+                RecognitionInput.RECORDING -> {
+                    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                        requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), CHAT_MEDIA_MIC_PERMISSION)
+                    } else {
+                        pendingChatMedia = null
+                        startChatRecognition(media, null)
+                    }
+                }
+            }
+        } catch (error: Exception) {
+            discardChatPhoto(pendingChatMedia)
+            pendingChatMedia = null
+            val status = if (error is ActivityNotFoundException && input == RecognitionInput.CAMERA)
+                "Camera unavailable. Add an image from your files." else "Could not open this input. Try again."
+            recognitionNotice = media.chatId to status
+            render()
+        }
+    }
+
+    private fun discardChatPhoto(media: ChatMedia?) {
+        media?.photo?.let { name ->
+            val file = File(chatPhotoDirectory, name)
+            revokeUriPermission(chatPhotoUri(file), CHAT_PHOTO_GRANTS)
+            file.delete()
+        }
+    }
+
+    private fun startChatRecognition(media: ChatMedia, uri: Uri?) {
+        if (busy || imageStore.running() || screen != "Chat" || chat.id != media.chatId || chat.model != media.model) {
+            discardChatPhoto(media)
+            return
+        }
+        val recordingInput = media.input == RecognitionInput.RECORDING
+        val ocr = RecognitionMode.fromModel(media.model) == RecognitionMode.OCR
+        saveDraft()
+        activeChatMedia = media
+        recordingPhase = if (recordingInput) RecordingPhase.OPENING else null
+        busy = true
+        busyMessage = if (recordingInput) "Opening the microphone…" else if (ocr) "Reading image…" else "Transcribing audio…"
+        render()
+        worker.execute {
+            val result = runCatching { engine.close() }
+            runOnUiThread {
+                if (destroyed || activeChatMedia !== media) return@runOnUiThread
+                if (result.isFailure) { completeChatRecognition(result.map { "" }); return@runOnUiThread }
+                recognitionClient.start(media.token, media.model, uri, recordingInput)
+            }
+        }
+    }
+
+    private fun cancelChatRecognition() {
+        val media = activeChatMedia ?: return
+        activeChatMedia = null
+        recordingPhase = null
+        busy = false
+        recognitionClient.close()
+        discardChatPhoto(media)
+    }
+
+    private fun completeChatRecognition(result: Result<String>) {
+        val media = activeChatMedia ?: return
+        cancelChatRecognition()
+        result.onSuccess { text ->
+            if (text.isBlank()) {
+                val status = if (RecognitionMode.fromModel(media.model) == RecognitionMode.OCR)
+                    "No readable text found. Try a sharper image." else "No speech was recognized. Try a clearer recording."
+                recognitionNotice = media.chatId to status
+            } else runCatching {
+                chats.addRecognitionResult(media.chatId, media.model, media.token, media.input, text)
+            }.onSuccess { saved ->
+                if (saved && chat.id == media.chatId) reloadChat()
+            }.onFailure {
+                recognitionNotice = media.chatId to "Could not save the result. Check available storage."
+            }
+        }.onFailure {
+            recognitionNotice = media.chatId to (it.message ?: "Could not recognize text. Try again.")
+        }
+        render()
     }
 
     private fun refreshListenControl() {
@@ -766,8 +1040,7 @@ class MainActivity : Activity() {
                 .setMessage(if (ocr) "Install a model to read text from photos. Then return to this chat to add an image or take a photo."
                     else "Install a model to transcribe audio offline. Then return to this chat to add or record audio.")
                 .setPositiveButton("Browse models") { _, _ ->
-                    refreshModelCatalog()
-                    showCatalogTask(task)
+                    showRecognitionCatalog(task)
                 }
                 .setNegativeButton("Cancel", null).show()
             1 -> readImageText(recipe = choices.firstOrNull(), input = input)
@@ -781,7 +1054,9 @@ class MainActivity : Activity() {
 
     private fun useInstalledRecipe(spec: SpeechModelSpec) {
         if (spec.voices.isNotEmpty()) chooseSpeechVoice(spec)
-        else { navigate("Chat"); readImageText(recipe = spec) }
+        else RecognitionMode.fromTask(RecipeAdapter.forBackend(spec.backend)?.task)?.let {
+            selectRecognitionModel(it.modelKey(spec.id), spec.title)
+        }
     }
 
     private fun readImageText(download: Boolean = false, recipe: SpeechModelSpec? = null,
@@ -1373,7 +1648,7 @@ class MainActivity : Activity() {
                     ?: toast("This model is no longer installed.")
             }
             is CatalogSource.Speech -> useInstalledRecipe(source.spec)
-            CatalogSource.Mirage -> { navigate("Chat"); readImageText() }
+            CatalogSource.Mirage -> selectRecognitionModel(RecognitionMode.MIRAGE_KEY, MirageModel.title)
             CatalogSource.Dictation -> { navigate("Chat"); startListening() }
         }
     }
@@ -1425,8 +1700,9 @@ class MainActivity : Activity() {
     }
 
     private fun manageLibraryEntry(entry: LibraryEntry) {
-        if (entry.key.startsWith("recipe:")) {
-            showSpeechModelDetails(speechModels.find(entry.key.removePrefix("recipe:")))
+        val recognition = RecognitionMode.fromModel(entry.key)
+        if (recognition != null && entry.key != RecognitionMode.MIRAGE_KEY) {
+            showSpeechModelDetails(speechModels.find(entry.key.removePrefix(recognition.prefix)))
             return
         }
         val actions = when (entry.kind) {
@@ -1533,6 +1809,22 @@ class MainActivity : Activity() {
     @Deprecated("Platform activity result API")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == CHAT_MEDIA_FILE || requestCode == CHAT_MEDIA_CAMERA) {
+            val media = pendingChatMedia ?: return
+            pendingChatMedia = null
+            val file = media.photo?.let { File(chatPhotoDirectory, it) }
+            if (file != null) revokeUriPermission(chatPhotoUri(file), CHAT_PHOTO_GRANTS)
+            if (resultCode != RESULT_OK) { discardChatPhoto(media); return }
+            val uri = if (requestCode == CHAT_MEDIA_CAMERA) file?.takeIf { it.length() > 0 }?.let(Uri::fromFile)
+                else data?.data
+            if (uri != null) startChatRecognition(media, uri)
+            else {
+                discardChatPhoto(media)
+                recognitionNotice = media.chatId to "No media was received. Try adding a file."
+                render()
+            }
+            return
+        }
         if (requestCode == OcrActivity.REQUEST) {
             if (resultCode == RESULT_OK && data?.getStringExtra(OcrActivity.CHAT_ID) == chat.id) {
                 val recognized = data.getStringExtra(OcrActivity.TRANSCRIPT).orEmpty()
@@ -1897,8 +2189,8 @@ class MainActivity : Activity() {
                 if (destroyed) return@runOnUiThread
                 speechDownloadSpec = null
                 result.onSuccess {
-                    speechModels.selectedId = spec.id
-                    updateSpeechStatus("${spec.title} is ready. Choose it in Chat to speak text.")
+                    if (spec.voices.isNotEmpty()) speechModels.selectedId = spec.id
+                    updateSpeechStatus("${spec.title} is ready. Select it at the top of Chat.")
                 }.onFailure { error ->
                     interruptedSpeechDownloadId = spec.id
                     val paused = error is java.util.concurrent.CancellationException || speechDownloadCancelled.get()
@@ -1990,10 +2282,14 @@ class MainActivity : Activity() {
     }
 
     private fun startListening() {
+        if (RecognitionMode.fromModel(chat.model) != null) {
+            toast("Switch to a model with a text composer to dictate a message.")
+            return
+        }
         if (!SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) { notice("On-device speech isn’t available", "Your phone has no available on-device speech recognizer. Install an offline recognition service or language pack. This app does not fall back to online recognition."); return }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) { requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 101); return }
         val targetChat = chat.id
-        stopSpeech(); recognizer?.destroy()
+        stopSpeech(); stopDictation()
         runCatching { recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this).apply {
             setRecognitionListener(object : RecognitionListener {
                 private var speechEndedAt: Long? = null
@@ -2040,8 +2336,25 @@ class MainActivity : Activity() {
         } }.onFailure { listening = false; refreshListenControl(); notice("Could not start microphone", it.message ?: "The on-device speech service is unavailable.") }
     }
 
+    private fun stopDictation() {
+        recognizer?.destroy()
+        recognizer = null
+        listening = false
+        refreshListenControl()
+    }
+
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == CHAT_MEDIA_MIC_PERMISSION) {
+            val media = pendingChatMedia ?: return
+            pendingChatMedia = null
+            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startChatRecognition(media, null)
+            else {
+                recognitionNotice = media.chatId to "Allow microphone access to record audio, or add a WAV file."
+                render()
+            }
+            return
+        }
         if (requestCode == 101 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startListening()
         else if (requestCode == 101) toast("Microphone permission is needed to transcribe speech.")
     }
@@ -2050,13 +2363,30 @@ class MainActivity : Activity() {
         outState.putString("draft", draft)
         outState.putString("modelFilter", modelFilter)
         outState.putString("pendingModelRole", pendingModelRole); outState.putString("pendingImageFamily", pendingImageFamily); outState.putString("pendingExport", pendingExport)
+        pendingChatMedia?.let { media ->
+            outState.putBundle("chatMedia", Bundle().apply {
+                putString("chatId", media.chatId)
+                putString("model", media.model)
+                putString("input", media.input.name)
+                putString("token", media.token)
+                putString("photo", media.photo)
+            })
+        }
         super.onSaveInstanceState(outState)
     }
     override fun onResume() { super.onResume(); if (pendingGeneration != null) { uiHandler.removeCallbacks(generationHeartbeat); uiHandler.post(generationHeartbeat) }; checkAppUpdates(); uiHandler.removeCallbacks(imageHealthCheck); uiHandler.post(imageHealthCheck) }
-    override fun onStop() { uiHandler.removeCallbacks(generationHeartbeat); saveDraft(); uiHandler.removeCallbacks(imageHealthCheck); super.onStop(); recognizer?.cancel(); listening = false; stopSpeech(); speechClient.close(); speechDownloadCancelled.set(true) }
+    override fun onStop() {
+        uiHandler.removeCallbacks(generationHeartbeat); saveDraft(); uiHandler.removeCallbacks(imageHealthCheck)
+        super.onStop()
+        recognizer?.cancel(); listening = false
+        if (activeChatMedia != null) { cancelChatRecognition(); render() }
+        stopSpeech(); speechClient.close(); speechDownloadCancelled.set(true)
+    }
     override fun onDestroy() {
         uiHandler.removeCallbacks(generationHeartbeat)
         destroyed = true; modelSheet?.dismiss(); updateWorker.shutdownNow(); recognizer?.destroy(); tts?.shutdown()
+        cancelChatRecognition()
+        if (isFinishing) discardChatPhoto(pendingChatMedia)
         catalogWorker.shutdownNow()
         speechDownloadCancelled.set(true); speechSetupWorker.shutdownNow(); speechClient.close()
         uiHandler.removeCallbacks(imageHealthCheck); unregisterReceiver(imageUpdates)

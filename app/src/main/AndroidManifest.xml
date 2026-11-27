@@ -20,6 +20,7 @@
         <service android:name=".UpdateCheckService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="true" />
         <service android:name=".ModelDownloadService" android:exported="false" android:process=":downloads" android:foregroundServiceType="dataSync" />
         <service android:name=".SpeechService" android:exported="false" android:process=":speech" />
+        <service android:name=".RecognitionService" android:exported="false" android:process=":ocr" />
         <service android:name=".ImageGenerationService" android:exported="false" android:process=":image" android:foregroundServiceType="dataSync|mediaProcessing" android:stopWithTask="false" />
         <provider android:name=".ChatPhotoProvider" android:authorities="${applicationId}.chat-photo"
             android:exported="false" android:grantUriPermissions="true">

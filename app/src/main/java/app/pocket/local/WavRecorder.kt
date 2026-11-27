@@ -32,7 +32,8 @@ internal fun monoPcmWavHeader(sampleRate: Int, frames: Long): ByteArray {
 
 // The activity checks RECORD_AUDIO before starting this worker. Android also enforces it at open.
 @SuppressLint("MissingPermission")
-internal fun recordChatWav(output: File, shouldStop: () -> Boolean, isCancelled: () -> Boolean) {
+internal fun recordChatWav(output: File, shouldStop: () -> Boolean, isCancelled: () -> Boolean,
+                           onRecording: () -> Unit = {}) {
     val rate = 16_000
     val format = AudioFormat.ENCODING_PCM_16BIT
     val channel = AudioFormat.CHANNEL_IN_MONO
@@ -59,6 +60,7 @@ internal fun recordChatWav(output: File, shouldStop: () -> Boolean, isCancelled:
                 pcm.clear()
                 for (index in 0 until count) pcm.putShort(samples[index])
                 file.write(pcm.array(), 0, count * 2)
+                if (frames == 0) onRecording()
                 frames += count
             }
             if (isCancelled()) throw CancellationException()
